@@ -1,14 +1,30 @@
 import os
 import time
+from dataclasses import dataclass
 
 import psutil
 
 from .models import Identity, Process, Snapshot, clean
 
 
+@dataclass(frozen=True)
+class _StaticProcess:
+    ppid: int
+    name: str
+    executable: str
+    user: str
+    uid: int | None
+    refreshed: float
+
+
 class Collector:
+    STATIC_REFRESH_SECONDS = 60
+    STATE_REFRESH_SECONDS = 5
+
     def __init__(self) -> None:
         self._previous: dict[Identity, float] = {}
+        self._static: dict[Identity, _StaticProcess] = {}
+        self._states: dict[Identity, tuple[str, float]] = {}
         self._time: float | None = None
         self._network = None
         self._disk = None
@@ -19,42 +35,66 @@ class Collector:
         elapsed = now - self._time if self._time is not None else 0
         counters: dict[Identity, float] = {}
         processes: list[Process] = []
-        # Fresh objects avoid process_iter's cached creation time after PID reuse.
-        for pid in psutil.pids():
+        active: set[Identity] = set()
+        # process_iter reuses handles and removes reused PIDs. Static metadata is
+        # refreshed periodically; the action controller still validates creation
+        # time and ownership immediately before every signal.
+        for p in psutil.process_iter():
             try:
-                p = psutil.Process(pid)
                 with p.oneshot():
-                    identity = Identity(pid, p.create_time())
-                    times = p.cpu_times()
-                    total = times.user + times.system
-                    counters[identity] = total
-                    previous = self._previous.get(identity, total)
-                    cpu = max(0, (total - previous) / elapsed * 100) if elapsed else 0
-                    try:
-                        executable = clean(p.exe(), 1024)
-                    except (psutil.AccessDenied, psutil.ZombieProcess):
-                        executable = ""
-                    try:
-                        uid = p.uids().real
-                        user = clean(p.username(), 80)
-                    except (AttributeError, psutil.AccessDenied):
-                        uid, user = None, "?"
-                    processes.append(
-                        Process(
-                            identity,
+                    identity = Identity(p.pid, p.create_time())
+                    active.add(identity)
+                    static = self._static.get(identity)
+                    if static is None or now - static.refreshed >= self.STATIC_REFRESH_SECONDS:
+                        try:
+                            executable = clean(p.exe(), 1024)
+                        except (psutil.AccessDenied, psutil.ZombieProcess):
+                            executable = ""
+                        try:
+                            uid = p.uids().real
+                            user = clean(p.username(), 80)
+                        except (AttributeError, psutil.AccessDenied):
+                            uid, user = None, "?"
+                        static = _StaticProcess(
                             p.ppid(),
                             clean(p.name(), 120),
                             executable,
                             user,
                             uid,
+                            now,
+                        )
+                        self._static[identity] = static
+                    state = self._states.get(identity)
+                    if state is None or now - state[1] >= self.STATE_REFRESH_SECONDS:
+                        state = (p.status(), now)
+                        self._states[identity] = state
+                    times = p.cpu_times()
+                    total = times.user + times.system
+                    counters[identity] = total
+                    previous = self._previous.get(identity, total)
+                    cpu = max(0, (total - previous) / elapsed * 100) if elapsed else 0
+                    processes.append(
+                        Process(
+                            identity,
+                            static.ppid,
+                            static.name,
+                            static.executable,
+                            static.user,
+                            static.uid,
                             cpu,
                             p.memory_info().rss,
-                            p.status(),
+                            state[0],
                             p.num_threads(),
                         )
                     )
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
+        self._static = {
+            identity: data for identity, data in self._static.items() if identity in active
+        }
+        self._states = {
+            identity: state for identity, state in self._states.items() if identity in active
+        }
         memory, swap = psutil.virtual_memory(), psutil.swap_memory()
         network, disk = psutil.net_io_counters(), psutil.disk_io_counters()
 
