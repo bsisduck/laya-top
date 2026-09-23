@@ -1,46 +1,58 @@
 import re
 import shlex
 from collections import defaultdict
+from collections.abc import Callable
 
 from .models import Process
 from .tagging import Tag, application
 
 
-def matches(process: Process, tag: Tag, query: str) -> bool:
+def compile_query(query: str) -> Callable[[Process, Tag], bool]:
+    if not query.strip():
+        return lambda process, tag: True
     try:
         terms = shlex.split(query.casefold())
     except ValueError:
         terms = query.casefold().split()
-    haystack = f"{process.name} {application(process)} {tag.category} {process.user}".casefold()
-    for term in terms:
-        negate = term.startswith("-")
-        token = term[1:] if negate else term
-        if ":" in token:
-            key, value = token.split(":", 1)
-            fields = {
-                "tag": tag.category,
-                "user": process.user,
-                "pid": str(process.pid),
-                "app": application(process),
-                "state": process.status,
-                "source": tag.source,
-            }
-            found = value in fields[key].casefold() if key in fields else token in haystack
-            if key == "pid":
-                found = value == str(process.pid)
-        elif comparison := re.fullmatch(r"(cpu|mem)([<>])([\d.]+)", token):
-            key, operator, number = comparison.groups()
-            try:
-                limit = float(number)
-            except ValueError:
+
+    def match(process: Process, tag: Tag) -> bool:
+        app = application(process)
+        haystack = f"{process.name} {app} {tag.category} {process.user}".casefold()
+        for term in terms:
+            negate = term.startswith("-")
+            token = term[1:] if negate else term
+            if ":" in token:
+                key, value = token.split(":", 1)
+                fields = {
+                    "tag": tag.category,
+                    "user": process.user,
+                    "pid": str(process.pid),
+                    "app": app,
+                    "state": process.status,
+                    "source": tag.source,
+                }
+                found = value in fields[key].casefold() if key in fields else token in haystack
+                if key == "pid":
+                    found = value == str(process.pid)
+            elif comparison := re.fullmatch(r"(cpu|mem)([<>])([\d.]+)", token):
+                key, operator, number = comparison.groups()
+                try:
+                    limit = float(number)
+                except ValueError:
+                    return False
+                current = process.cpu if key == "cpu" else process.rss / 1024**2
+                found = current > limit if operator == ">" else current < limit
+            else:
+                found = token in haystack
+            if found == negate:
                 return False
-            value = process.cpu if key == "cpu" else process.rss / 1024**2
-            found = value > limit if operator == ">" else value < limit
-        else:
-            found = token in haystack
-        if found == negate:
-            return False
-    return True
+        return True
+
+    return match
+
+
+def matches(process: Process, tag: Tag, query: str) -> bool:
+    return compile_query(query)(process, tag)
 
 
 def order(processes: list[Process], sort: str, reverse: bool = False) -> list[Process]:

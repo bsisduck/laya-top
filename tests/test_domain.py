@@ -2,6 +2,7 @@ from dataclasses import replace
 
 import pytest
 
+from laya_top import query
 from laya_top.config import load_labels, save_label
 from laya_top.models import Identity, clean
 from laya_top.query import matches, order, tree_order
@@ -67,3 +68,8 @@ def test_labels_atomic_reset_and_corrupt_config(tmp_path):
 
 def test_ai_tags_searchable(process):
     assert matches(process, Tag("AI", "Laya", "suggestion"), "source:Laya tag:AI")
+
+
+def test_blank_query_skips_process_metadata_work(process, monkeypatch):
+    monkeypatch.setattr(query, "application", lambda process: (_ for _ in ()).throw(AssertionError))
+    assert matches(process, Tag("AI", "Rule", "test"), "")

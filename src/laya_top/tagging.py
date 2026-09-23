@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import PurePath
 
 from .models import Process
@@ -45,10 +46,15 @@ class Tag:
 
 
 def application(process: Process) -> str:
-    for component in PurePath(process.executable).parts:
+    return _application(process.name, process.executable)
+
+
+@lru_cache(maxsize=4096)
+def _application(name: str, executable: str) -> str:
+    for component in PurePath(executable).parts:
         if component.endswith(".app"):
             return component[:-4]
-    return process.name
+    return name
 
 
 def label_key(process: Process) -> str:

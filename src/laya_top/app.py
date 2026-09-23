@@ -16,7 +16,7 @@ from .config import load_labels, save_label
 from .intelligence import Intelligence
 from .layout import table_columns
 from .models import Process, Snapshot, age, size
-from .query import matches, order, tree_order
+from .query import compile_query, order, tree_order
 from .screens import HELP, ConfirmScreen, DetailScreen, LabelScreen, description
 from .tagging import COLORS, Tag, label_key, rule_tag
 from .widgets import PercentHistory, ProcessTable
@@ -65,6 +65,7 @@ class LayaTop(App):
         self.overrides = {} if demo else load_labels()
         self.snapshot: Snapshot | None = None
         self.tags: dict[str, Tag] = {}
+        self._tag_inputs: dict[str, tuple[str, str]] = {}
         self.visible_processes: dict[str, Process] = {}
         self.selected: str | None = None
         self.pins: set[str] = set()
@@ -72,6 +73,9 @@ class LayaTop(App):
         self.mine, self.frozen = False, False
         self._sampling = False
         self._table_columns: tuple[tuple[str, str, int], ...] = ()
+        self._rendered_mode = ""
+        self._rendered_keys: list[str] = []
+        self._rendered_cells: dict[str, dict[str, object]] = {}
         self._rendering = False
         self._selection_lost = False
         self._cpu_history: deque[float] = deque(maxlen=60)
@@ -160,12 +164,20 @@ class LayaTop(App):
             self.snapshot = snapshot
             self._cpu_history.append(snapshot.cpu)
             self._mem_history.append(snapshot.memory_percent)
+            previous_tags = self.tags
+            previous_inputs = self._tag_inputs
             self.tags = {}
+            self._tag_inputs = {}
             for process in sorted(snapshot.processes, key=lambda p: (-p.cpu, -p.rss)):
-                tag = rule_tag(process, self.overrides)
-                if tag.source == "Unknown":
+                key = process.identity.key
+                inputs = (process.name, process.executable)
+                tag = previous_tags.get(key)
+                if tag is None or previous_inputs.get(key) != inputs:
+                    tag = rule_tag(process, self.overrides)
+                if tag.source == "Unknown" and self.ai.available:
                     tag = self.ai.suggest(process) or tag
-                self.tags[process.identity.key] = tag
+                self.tags[key] = tag
+                self._tag_inputs[key] = inputs
             active_keys = {p.identity.key for p in snapshot.processes}
             self.pins.intersection_update(active_keys)
             self.update_metrics()
@@ -203,11 +215,11 @@ class LayaTop(App):
         if not self.snapshot:
             return []
         query = self.query_one("#search", Input).value
+        matches = compile_query(query)
         processes = [
             p
             for p in self.snapshot.processes
-            if (not self.mine or p.uid == os.getuid())
-            and matches(p, self.tags[p.identity.key], query)
+            if (not self.mine or p.uid == os.getuid()) and matches(p, self.tags[p.identity.key])
         ]
         processes = order(processes, self.sort_column, self.reverse)
         processes.sort(key=lambda p: p.identity.key not in self.pins)
@@ -229,14 +241,32 @@ class LayaTop(App):
         processes = self.filtered()
         self.visible_processes = {p.identity.key: p for p in processes}
         self._rendering = True
-        keys = []
+        rows = tree_order(processes) if self.mode == "tree" else [(p, 0) for p in processes]
+        keys = (
+            [
+                "group:" + category
+                for category in sorted({tag.category for tag in self.tags.values()})
+            ]
+            if self.mode == "groups"
+            else [process.identity.key for process, _ in rows]
+        )
+        incremental = (
+            self.mode != "groups"
+            and self._rendered_mode == self.mode
+            and not changed_columns
+            and "pid" in table.columns
+            and set(keys) == set(self._rendered_keys)
+        )
         with self.batch_update(), table.prevent(DataTable.RowHighlighted):
-            table.clear(columns=changed_columns)
-            if changed_columns:
-                for key, label, width in columns:
-                    table.add_column(label, width=width, key=key)
-                self._table_columns = columns
+            if not incremental:
+                table.clear(columns=changed_columns)
+                if changed_columns:
+                    for key, label, width in columns:
+                        table.add_column(label, width=width, key=key)
+                    self._table_columns = columns
+                self._rendered_cells = {}
             if self.mode == "groups":
+                keys = []
                 groups = defaultdict(list)
                 for process in processes:
                     groups[self.tags[process.identity.key].category].append(process)
@@ -255,28 +285,24 @@ class LayaTop(App):
                     }
                     table.add_row(*(values[c[0]] for c in columns), key=key)
             else:
-                rows = tree_order(processes) if self.mode == "tree" else [(p, 0) for p in processes]
+                signatures = {}
                 for process, depth in rows:
                     key = process.identity.key
-                    keys.append(key)
-                    tag = self.tags[key]
-                    prefix = "★ " if key in self.pins else ""
-                    prefix += "  " * depth + ("└ " if depth else "")
-                    cpu_style = "bold #f4c97b" if process.cpu > 50 else "#c9d7e8"
-                    values = {
-                        "pid": str(process.pid),
-                        "name": Text(prefix + process.name, overflow="ellipsis", no_wrap=True),
-                        "category": Text(
-                            tag.category + (" ~" if tag.source == "Laya" else ""),
-                            style=COLORS[tag.category],
-                        ),
-                        "cpu": Text(f"{process.cpu:.1f}", style=cpu_style),
-                        "memory": size(process.rss),
-                        "user": Text(process.user),
-                        "state": process.status,
-                        "source": tag.source,
-                    }
-                    table.add_row(*(values[c[0]] for c in columns), key=key)
+                    values, signature = self.process_cells(process, depth)
+                    signatures[key] = signature
+                    if incremental:
+                        previous_cells = self._rendered_cells.get(key, {})
+                        for column, _, _ in columns:
+                            if previous_cells.get(column) != signature[column]:
+                                table.update_cell(key, column, values[column], update_width=False)
+                    else:
+                        table.add_row(*(values[c[0]] for c in columns), key=key)
+                if incremental:
+                    rank = {str(process.pid): index for index, (process, _) in enumerate(rows)}
+                    table.sort("pid", key=lambda pid: rank[str(pid)])
+                self._rendered_cells = signatures
+            self._rendered_mode = self.mode
+            self._rendered_keys = keys
             if previous in keys:
                 table.move_cursor(row=keys.index(previous), animate=False, scroll=False)
                 self.selected = previous
@@ -307,6 +333,40 @@ class LayaTop(App):
         for name in ("processes", "tree", "groups"):
             self.query_one(f"#{name}-view", Button).set_class(self.mode == name, "active-view")
         self.update_inspector()
+
+    def process_cells(
+        self, process: Process, depth: int
+    ) -> tuple[dict[str, object], dict[str, object]]:
+        key = process.identity.key
+        tag = self.tags[key]
+        prefix = "★ " if key in self.pins else ""
+        prefix += "  " * depth + ("└ " if depth else "")
+        name = prefix + process.name
+        category = tag.category + (" ~" if tag.source == "Laya" else "")
+        cpu = f"{process.cpu:.1f}"
+        cpu_style = "bold #f4c97b" if process.cpu > 50 else "#c9d7e8"
+        memory = size(process.rss)
+        values = {
+            "pid": str(process.pid),
+            "name": Text(name, overflow="ellipsis", no_wrap=True),
+            "category": Text(category, style=COLORS[tag.category]),
+            "cpu": Text(cpu, style=cpu_style),
+            "memory": memory,
+            "user": Text(process.user),
+            "state": process.status,
+            "source": tag.source,
+        }
+        signatures = {
+            "pid": str(process.pid),
+            "name": name,
+            "category": (category, tag.category),
+            "cpu": (cpu, cpu_style),
+            "memory": memory,
+            "user": process.user,
+            "state": process.status,
+            "source": tag.source,
+        }
+        return values, signatures
 
     def selected_process(self) -> Process | None:
         return self.visible_processes.get(self.selected or "")

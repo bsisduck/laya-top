@@ -208,3 +208,35 @@ async def test_header_sort_uses_column_identity_after_columns_hide():
         await pilot.click("#processes", offset=(header_x, 1))
         await pilot.pause()
         assert app.sort_column == "cpu"
+
+
+async def test_unchanged_process_metadata_reuses_rule_tags(monkeypatch):
+    from laya_top import app as app_module
+
+    original = app_module.rule_tag
+    calls = 0
+
+    def counted(process, overrides):
+        nonlocal calls
+        calls += 1
+        return original(process, overrides)
+
+    monkeypatch.setattr(app_module, "rule_tag", counted)
+    app = LayaTop(demo=True, interval=300)
+    async with app.run_test(size=(120, 35)) as pilot:
+        await pilot.pause(0.3)
+        first = calls
+        table = app.query_one(DataTable)
+        clears = 0
+        original_clear = table.clear
+
+        def counted_clear(*args, **kwargs):
+            nonlocal clears
+            clears += 1
+            return original_clear(*args, **kwargs)
+
+        monkeypatch.setattr(table, "clear", counted_clear)
+        await app.collect_sample()
+        assert first == 12
+        assert calls == first
+        assert clears == 0
