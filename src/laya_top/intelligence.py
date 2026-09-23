@@ -10,7 +10,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from .models import Process, clean
-from .tagging import Tag, application
+from .tagging import Tag, application, subcategory_for_text
 
 CHOICES = {
     "ai": "AI models",
@@ -78,6 +78,7 @@ class CoreMLBackend:
             "Laya",
             "Local model suggestion based on software names. Verify before relying on it.",
             values[0],
+            subcategory_for_text(CATEGORY_MAP[choice], text),
         )
 
 

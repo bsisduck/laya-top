@@ -17,14 +17,15 @@ def compile_query(query: str) -> Callable[[Process, Tag], bool]:
 
     def match(process: Process, tag: Tag) -> bool:
         app = application(process)
-        haystack = f"{process.name} {app} {tag.category} {process.user}".casefold()
+        haystack = f"{process.name} {app} {tag.label} {process.user}".casefold()
         for term in terms:
             negate = term.startswith("-")
             token = term[1:] if negate else term
             if ":" in token:
                 key, value = token.split(":", 1)
                 fields = {
-                    "tag": tag.category,
+                    "tag": tag.label,
+                    "sub": tag.subcategory,
                     "user": process.user,
                     "pid": str(process.pid),
                     "app": app,

@@ -12,9 +12,9 @@ from laya_top.tagging import Tag, application, label_key, rule_tag
 def test_rules_app_family_and_override(process):
     chrome = replace(process, name="helper", executable="/Applications/Google Chrome.app/Helper")
     assert application(chrome) == "Google Chrome"
-    assert rule_tag(chrome, {}).category == "Browser"
+    assert rule_tag(chrome, {}).label == "Browser / Browser"
     assert rule_tag(chrome, {label_key(chrome): "Development"}).source == "You"
-    assert rule_tag(replace(process, name="ollama"), {}).category == "AI"
+    assert rule_tag(replace(process, name="ollama"), {}).label == "AI / Inference"
     assert rule_tag(replace(process, name="not-classified", executable=""), {}).source == "Unknown"
 
 
@@ -67,7 +67,9 @@ def test_labels_atomic_reset_and_corrupt_config(tmp_path):
 
 
 def test_ai_tags_searchable(process):
-    assert matches(process, Tag("AI", "Laya", "suggestion"), "source:Laya tag:AI")
+    tag = Tag("Development", "Laya", "suggestion", subcategory="Runtime")
+    assert matches(process, tag, "source:Laya tag:Development sub:Runtime")
+    assert matches(process, tag, 'tag:"Development / Runtime"')
 
 
 def test_blank_query_skips_process_metadata_work(process, monkeypatch):

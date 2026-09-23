@@ -19,7 +19,7 @@ def description(process: Process, tag: Tag, timestamp: float, protection: str | 
     output.append(f"PID {process.pid}  ·  parent {process.ppid}\n\n", style="#9eb0c7")
     rows = [
         ("Application", application(process)),
-        ("Category", tag.category),
+        ("Category", tag.label),
         ("Tagged by", tag.source),
         ("Owner", process.user),
         ("State", process.status),
