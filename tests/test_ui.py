@@ -24,7 +24,7 @@ async def test_search_group_drilldown_and_small_terminal():
         await pilot.press("enter")
         await pilot.pause()
         assert app.mode == "processes"
-        assert app.query_one(Input).value.startswith("tag:")
+        assert app.query_one(Input).value == 'tag:"AI / Inference"'
         await pilot.resize_terminal(80, 24)
         await pilot.pause()
         assert app.has_class("compact")

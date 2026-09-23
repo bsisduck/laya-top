@@ -242,14 +242,7 @@ class LayaTop(App):
         self.visible_processes = {p.identity.key: p for p in processes}
         self._rendering = True
         rows = tree_order(processes) if self.mode == "tree" else [(p, 0) for p in processes]
-        keys = (
-            [
-                "group:" + category
-                for category in sorted({tag.category for tag in self.tags.values()})
-            ]
-            if self.mode == "groups"
-            else [process.identity.key for process, _ in rows]
-        )
+        keys = [] if self.mode == "groups" else [process.identity.key for process, _ in rows]
         incremental = (
             self.mode != "groups"
             and self._rendered_mode == self.mode
@@ -269,15 +262,16 @@ class LayaTop(App):
                 keys = []
                 groups = defaultdict(list)
                 for process in processes:
-                    groups[self.tags[process.identity.key].category].append(process)
-                for category, members in sorted(
+                    groups[self.tags[process.identity.key].label].append(process)
+                for label, members in sorted(
                     groups.items(), key=lambda item: -sum(p.cpu for p in item[1])
                 ):
-                    key = "group:" + category
+                    key = "group:" + label
                     keys.append(key)
                     top = max(members, key=lambda p: p.cpu)
+                    top_tag = self.tags[top.identity.key]
                     values = {
-                        "category": Text(category, style=COLORS[category]),
+                        "category": Text(label, style=COLORS[top_tag.category]),
                         "count": str(len(members)),
                         "cpu": f"{sum(p.cpu for p in members):.1f}",
                         "memory": size(sum(p.rss for p in members)),
@@ -342,7 +336,7 @@ class LayaTop(App):
         prefix = "★ " if key in self.pins else ""
         prefix += "  " * depth + ("└ " if depth else "")
         name = prefix + process.name
-        category = tag.category + (" ~" if tag.source == "Laya" else "")
+        category = tag.label + (" ~" if tag.source == "Laya" else "")
         cpu = f"{process.cpu:.1f}"
         cpu_style = "bold #f4c97b" if process.cpu > 50 else "#c9d7e8"
         memory = size(process.rss)

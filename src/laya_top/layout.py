@@ -4,7 +4,7 @@
 def table_columns(width: int, groups: bool, padding: int = 1) -> tuple[tuple[str, str, int], ...]:
     if groups:
         columns = [
-            ("category", "CATEGORY", 15),
+            ("category", "CATEGORY / SUBCATEGORY", 24),
             ("count", "PROCESSES", 9),
             ("cpu", "CPU %", 6),
             ("memory", "RSS TOTAL", 10),
@@ -18,7 +18,7 @@ def table_columns(width: int, groups: bool, padding: int = 1) -> tuple[tuple[str
         columns = [
             ("pid", "PID", 7),
             ("name", "PROCESS", 24),
-            ("category", "CATEGORY", 15),
+            ("category", "CATEGORY / SUBCATEGORY", 24),
             ("cpu", "CPU %", 6),
             ("memory", "MEMORY", 10),
         ]
