@@ -10,8 +10,11 @@ case "${1:-}" in
 esac
 
 if command -v uv >/dev/null 2>&1; then
-  uv venv --python 3.12 .venv
-  uv pip install --python .venv/bin/python "$mode"
+  if [ "$mode" = "." ]; then
+    uv sync --frozen --no-dev
+  else
+    uv sync --frozen --no-dev --extra laya
+  fi
 else
   python_bin=""
   for candidate in python3.13 python3.12 python3.11 python3; do
@@ -25,7 +28,10 @@ else
     printf 'Install Python 3.11–3.13 or uv, then rerun this installer.\n' >&2
     exit 1
   fi
-  "$python_bin" -m venv .venv
+  if [ ! -x .venv/bin/python ]; then
+    "$python_bin" -m venv .venv
+  fi
+  .venv/bin/python -c 'import sys; assert (3, 11) <= sys.version_info[:2] < (3, 14), "Use Python 3.11–3.13"'
   .venv/bin/python -m pip install "$mode"
 fi
 printf '\nInstalled. Run ./laya-top\n'

@@ -97,6 +97,9 @@ class Collector:
 class DemoCollector:
     """Deterministic illustrative data. Never used for real process actions."""
 
+    def __init__(self):
+        self.started = time.time()
+
     def sample(self) -> Snapshot:
         now = time.time()
         specs = [
@@ -155,7 +158,7 @@ class DemoCollector:
         ]
         processes = tuple(
             Process(
-                Identity(pid, 1700000000.0 + pid),
+                Identity(pid, self.started - (pid - 4100) * 1200),
                 parent,
                 name,
                 exe,

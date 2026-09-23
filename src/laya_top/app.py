@@ -8,7 +8,7 @@ from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, DataTable, Footer, Header, Input, Select, Sparkline, Static
+from textual.widgets import Button, DataTable, Footer, Header, Input, Select, Static
 
 from .actions import ACTIONS, Controller
 from .collector import Collector, DemoCollector
@@ -18,6 +18,7 @@ from .models import Process, Snapshot, age, size
 from .query import matches, order, tree_order
 from .screens import HELP, ConfirmScreen, DetailScreen, LabelScreen, description
 from .tagging import COLORS, Tag, label_key, rule_tag
+from .widgets import PercentHistory
 
 
 class LayaTop(App):
@@ -82,11 +83,11 @@ class LayaTop(App):
             with Vertical(classes="metric"):
                 yield Static("CPU", classes="eyebrow")
                 yield Static("Collecting…", id="cpu-value", classes="metric-value")
-                yield Sparkline([0, 0], id="cpu-graph")
+                yield PercentHistory(id="cpu-graph")
             with Vertical(classes="metric"):
                 yield Static("MEMORY", classes="eyebrow")
                 yield Static("Collecting…", id="mem-value", classes="metric-value")
-                yield Sparkline([0, 0], id="mem-graph")
+                yield PercentHistory(id="mem-graph")
             with Vertical(classes="metric", id="io-metric"):
                 yield Static("I/O  ·  PER SECOND", classes="eyebrow")
                 yield Static("Collecting…", id="io-value")
@@ -172,8 +173,8 @@ class LayaTop(App):
         self.query_one("#mem-value", Static).update(
             f"{size(s.memory_used)} / {size(s.memory_total)}"
         )
-        self.query_one("#cpu-graph", Sparkline).data = list(self._cpu_history)
-        self.query_one("#mem-graph", Sparkline).data = list(self._mem_history)
+        self.query_one("#cpu-graph", PercentHistory).data = tuple(self._cpu_history)
+        self.query_one("#mem-graph", PercentHistory).data = tuple(self._mem_history)
         self.query_one("#io-value", Static).update(
             f"NET  ↓ {size(s.network_rx)}   ↑ {size(s.network_tx)}\n"
             f"DISK ↓ {size(s.disk_read)}   ↑ {size(s.disk_write)}"
@@ -218,13 +219,13 @@ class LayaTop(App):
                     table.add_columns("CATEGORY", "PROCESSES", "CPU %", "RSS TOTAL", "TOP CONSUMER")
                 else:
                     for label, width in (
-                        ("PID", 7),
-                        ("PROCESS", 27),
+                        ("PID", 6),
+                        ("PROCESS", 24),
                         ("CATEGORY", 16),
-                        ("CPU %", 8),
-                        ("MEMORY", 12),
-                        ("USER", 17),
-                        ("STATE", 11),
+                        ("CPU %", 7),
+                        ("MEMORY", 10),
+                        ("USER", 12),
+                        ("STATE", 9),
                         ("SOURCE", 8),
                     ):
                         table.add_column(label, width=width)
@@ -403,6 +404,8 @@ class LayaTop(App):
             search.value = ""
 
     def action_tree(self):
+        if self.mode == "groups":
+            self.selected, self._selection_lost = None, False
         self.mode = "processes" if self.mode == "tree" else "tree"
         self.render_table()
 

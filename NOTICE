@@ -1,0 +1,15 @@
+laya-top's original code is licensed under the MIT License.
+
+This project uses independently distributed third-party libraries. Their licenses
+remain applicable; installing this project does not relicense those dependencies.
+
+Optional intelligence uses Laya-CoreML by mizorewww, derived from Laya by Convai
+Innovations and contributors. Those projects and the selected published model
+bundle declare Apache-2.0 licensing. Model weights are downloaded separately and
+are not included in laya-top distributions.
+
+Laya-CoreML: https://github.com/mizorewww/laya-coreml
+Laya: https://github.com/NandhaKishorM/laya
+Model: https://huggingface.co/aac6fef/laya-multilingual-coreml-ane
+
+laya-top is an independent project, not an official Laya, Apple, htop or asitop product.

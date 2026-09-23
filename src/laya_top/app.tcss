@@ -6,7 +6,7 @@ Footer > .footer--key { background: #203956; color: #67d9ff; }
 .metric { width: 1fr; margin: 0 1 0 0; border: round #263951; padding: 0 1; }
 .eyebrow { color: #91a5bf; height: 1; text-style: bold; }
 .metric-value { height: 1; text-style: bold; color: #e4eefb; }
-Sparkline { height: 2; color: #67d9ff; }
+PercentHistory { height: 2; color: #67d9ff; }
 #mem-graph { color: #b8a0ff; }
 #io-value { height: 3; color: #a8c7db; padding-top: 1; }
 #toolbar { height: 3; padding: 0 1; }
@@ -31,6 +31,10 @@ DataTable > .datatable--cursor { background: #234460; color: #ffffff; }
 .narrow #io-metric { display: none; }
 .narrow #mode-note { display: none; }
 .narrow #sort { width: 19; }
+.narrow #metrics { height: 5; }
+.narrow PercentHistory { display: none; }
+.narrow #viewbar { display: none; }
+.narrow #intelligence { height: 1; }
 ModalScreen { align: center middle; background: #000000 65%; }
 .dialog { width: 64; max-width: 95%; height: auto; max-height: 90%; padding: 1 2;
           background: #111d2f; border: round #67d9ff; }

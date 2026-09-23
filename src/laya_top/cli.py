@@ -98,10 +98,13 @@ def main():
         if args.count < 1:
             root.error("--count must be positive")
         collector = DemoCollector() if args.demo else Collector()
-        collector.sample()
-        time.sleep(0.2)
-        snapshot = collector.sample()
-        overrides = load_labels()
+        try:
+            collector.sample()
+            time.sleep(0.2)
+            snapshot = collector.sample()
+        except (OSError, RuntimeError) as error:
+            root.error(f"Process access failed ({type(error).__name__}). Run in a normal terminal.")
+        overrides = {} if args.demo else load_labels()
         payload = asdict(snapshot)
         payload["processes"] = [
             dict(asdict(p), application=application(p), tag=asdict(rule_tag(p, overrides)))

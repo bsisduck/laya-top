@@ -2,6 +2,7 @@ from dataclasses import replace
 
 from textual.widgets import Button, DataTable, Input
 
+from laya_top.actions import ActionResult
 from laya_top.app import LayaTop
 from laya_top.collector import DemoCollector
 from laya_top.screens import ConfirmScreen, DetailScreen
@@ -85,3 +86,48 @@ async def test_empty_results_and_demo_controls():
         assert app.query_one(DataTable).row_count == 0
         app.action_control("kill")
         assert len(app.screen_stack) == 1
+
+
+async def test_confirmation_captures_original_target_and_blocks_other_shortcuts():
+    class FakeController:
+        calls = []
+
+        def protection(self, target):
+            return None
+
+        def execute(self, target, action):
+            self.calls.append((target.identity, action))
+            return ActionResult(True, "Test signal requested.")
+
+    controller = FakeController()
+    app = LayaTop(demo=True, interval=30, controller=controller)
+    async with app.run_test(size=(120, 38)) as pilot:
+        await pilot.pause(0.3)
+        target = app.selected_process()
+        await pilot.press("k")
+        await pilot.pause()
+        assert isinstance(app.screen, ConfirmScreen)
+        await pilot.press("k", "g", "t")
+        assert len(app.screen_stack) == 2
+        assert app.mode == "processes"
+        app.selected = next(key for key in app.visible_processes if key != target.identity.key)
+        await pilot.click("#confirm")
+        await pilot.pause()
+        assert controller.calls == [(target.identity, "terminate")]
+
+
+async def test_label_pin_tree_and_freeze():
+    app = LayaTop(demo=True, interval=30)
+    async with app.run_test(size=(120, 38)) as pilot:
+        await pilot.pause(0.3)
+        target = app.selected
+        await pilot.press("f", "t", "space")
+        await pilot.pause()
+        assert target in app.pins
+        assert app.mode == "tree"
+        assert app.frozen
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.click("#save")
+        await pilot.pause()
+        assert app.tags[target].source == "You"
