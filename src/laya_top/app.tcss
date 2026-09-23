@@ -1,0 +1,42 @@
+Screen { background: #0b1220; color: #dce6f3; }
+Header { background: #142239; color: #67d9ff; }
+Footer { background: #142239; }
+Footer > .footer--key { background: #203956; color: #67d9ff; }
+#metrics { height: 7; padding: 1 1 0 1; }
+.metric { width: 1fr; margin: 0 1 0 0; border: round #263951; padding: 0 1; }
+.eyebrow { color: #91a5bf; height: 1; text-style: bold; }
+.metric-value { height: 1; text-style: bold; color: #e4eefb; }
+Sparkline { height: 2; color: #67d9ff; }
+#mem-graph { color: #b8a0ff; }
+#io-value { height: 3; color: #a8c7db; padding-top: 1; }
+#toolbar { height: 3; padding: 0 1; }
+#search { width: 1fr; background: #111d2f; border: tall #263951; }
+#search:focus { border: tall #67d9ff; }
+#sort { width: 23; margin-left: 1; }
+#viewbar { height: 3; padding: 0 1; }
+.view-button { min-width: 10; height: 3; background: #111d2f; border: none; margin-right: 1; }
+.active-view { background: #203956; color: #67d9ff; text-style: bold; }
+#mode-note { width: 1fr; height: 1; margin-top: 1; color: #8497af; content-align: right middle; }
+#summary { height: 1; color: #9eb0c7; padding-left: 1; }
+#workspace { height: 1fr; padding: 0 1; }
+#processes { width: 1fr; height: 1fr; background: #0b1220; border: round #263951; }
+DataTable > .datatable--header { background: #142239; color: #91a5bf; text-style: bold; }
+DataTable > .datatable--odd-row { background: #101b2b; }
+DataTable > .datatable--even-row { background: #0c1524; }
+DataTable > .datatable--cursor { background: #234460; color: #ffffff; }
+#inspector { width: 36; height: 1fr; border: round #263951; padding: 1; margin-left: 1; }
+#details { height: auto; }
+#intelligence { height: 2; padding: 0 2; content-align: left middle; }
+.compact #inspector { display: none; }
+.narrow #io-metric { display: none; }
+.narrow #mode-note { display: none; }
+.narrow #sort { width: 19; }
+ModalScreen { align: center middle; background: #000000 65%; }
+.dialog { width: 64; max-width: 95%; height: auto; max-height: 90%; padding: 1 2;
+          background: #111d2f; border: round #67d9ff; }
+.dialog-title { text-style: bold; color: #67d9ff; margin-bottom: 1; }
+.dialog-note { margin: 1 0; }
+.dialog-buttons { height: 3; align-horizontal: right; margin-top: 1; }
+.dialog-buttons Button { margin-left: 1; min-width: 10; }
+.detail-dialog { width: 78; }
+.detail-dialog Button { margin-top: 1; }

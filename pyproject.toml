@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "laya-top"
+version = "0.1.0"
+description = "A local-first process monitor with explainable tags and optional Laya intelligence"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+authors = [{name = "Kamil Krawczyk"}]
+dependencies = ["psutil>=7.0,<8", "textual>=6.0,<9"]
+classifiers = ["Environment :: Console", "Operating System :: MacOS", "Operating System :: POSIX :: Linux", "Programming Language :: Python :: 3"]
+
+[project.optional-dependencies]
+laya = ["laya-coreml>=0.1,<0.2; sys_platform == 'darwin' and platform_machine == 'arm64'"]
+dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1", "build>=1,<2"]
+
+[project.scripts]
+laya-top = "laya_top.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/laya_top"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

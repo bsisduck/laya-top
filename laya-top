@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+if [ ! -x "$project_dir/.venv/bin/laya-top" ]; then
+  printf 'Run ./install.sh first.\n' >&2
+  exit 1
+fi
+cd -- "$project_dir"
+exec "$project_dir/.venv/bin/laya-top" "$@"
