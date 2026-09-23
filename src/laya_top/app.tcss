@@ -31,10 +31,13 @@ DataTable > .datatable--cursor { background: #234460; color: #ffffff; }
 .narrow #io-metric { display: none; }
 .narrow #mode-note { display: none; }
 .narrow #sort { width: 19; }
-.narrow #metrics { height: 5; }
-.narrow PercentHistory { display: none; }
-.narrow #viewbar { display: none; }
-.narrow #intelligence { height: 1; }
+.narrow #metrics, .short #metrics { height: 5; }
+.narrow PercentHistory, .short PercentHistory { display: none; }
+.narrow #viewbar, .short #viewbar { display: none; }
+.narrow #intelligence, .short #intelligence { height: 1; }
+.short #io-metric { display: none; }
+.flat #metrics { display: none; }
+.slim #sort { display: none; }
 ModalScreen { align: center middle; background: #000000 65%; }
 .dialog { width: 64; max-width: 95%; height: auto; max-height: 90%; padding: 1 2;
           background: #111d2f; border: round #67d9ff; }

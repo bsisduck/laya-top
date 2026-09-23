@@ -1,6 +1,15 @@
 from rich.text import Text
+from textual.message import Message
 from textual.reactive import reactive
-from textual.widgets import Static
+from textual.widgets import DataTable, Static
+
+
+class ProcessTable(DataTable):
+    class ViewportResized(Message):
+        """The table has its new dimensions after the parent layout changed."""
+
+    def on_resize(self):
+        self.post_message(self.ViewportResized())
 
 
 class PercentHistory(Static):

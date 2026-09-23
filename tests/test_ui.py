@@ -1,5 +1,6 @@
 from dataclasses import replace
 
+import pytest
 from textual.widgets import Button, DataTable, Input
 
 from laya_top.actions import ActionResult
@@ -131,3 +132,79 @@ async def test_label_pin_tree_and_freeze():
         await pilot.click("#save")
         await pilot.pause()
         assert app.tags[target].source == "You"
+
+
+@pytest.mark.parametrize("mode", ["processes", "tree", "groups"])
+async def test_resize_fits_columns_and_preserves_selection_while_frozen(mode):
+    app = LayaTop(demo=True, interval=300)
+    async with app.run_test(size=(155, 42)) as pilot:
+        await pilot.pause(0.3)
+        if mode == "tree":
+            await pilot.press("t")
+        elif mode == "groups":
+            await pilot.press("g")
+        await pilot.press("down", "space")
+        selected = app.selected
+        snapshot = app.snapshot
+        table = app.query_one(DataTable)
+        original_columns = [(c.key, c.width) for c in table.ordered_columns]
+        for width, height in (
+            (120, 24),
+            (100, 24),
+            (80, 24),
+            (60, 18),
+            (40, 12),
+            (85, 29),
+            (144, 30),
+            (145, 30),
+            (180, 50),
+            (155, 42),
+        ):
+            await pilot.resize_terminal(width, height)
+            await pilot.pause()
+            assert table.max_scroll_x == 0, (mode, width, height)
+            assert table.virtual_size.width <= table.scrollable_content_region.width
+            if "memory" in table.columns:
+                # Keep units visible, including values just below a GiB.
+                assert table.columns["memory"].width >= len("1023.9 MiB")
+            assert table.region.bottom <= height - 2
+            if height >= 24:
+                assert table.scrollable_content_region.height >= 9
+            assert app.selected == selected
+            assert app.snapshot is snapshot
+            assert app.frozen
+        assert [(c.key, c.width) for c in table.ordered_columns] == original_columns
+
+
+async def test_resize_during_confirmation_preserves_target_and_fits_after_dismissal():
+    app = LayaTop(demo=True, interval=300)
+    async with app.run_test(size=(155, 42)) as pilot:
+        await pilot.pause(0.3)
+        await pilot.press("space")
+        target = app.selected_process()
+        app.push_screen(ConfirmScreen(target, "kill"))
+        await pilot.pause()
+        await pilot.resize_terminal(80, 24)
+        await pilot.pause()
+        assert app.screen.target is target
+        assert app.screen.query_one("#confirm", Button).disabled
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.selected_process().identity == target.identity
+        assert app.query_one(DataTable).max_scroll_x == 0
+        assert app.query_one(DataTable).scrollable_content_region.height >= 9
+
+
+async def test_header_sort_uses_column_identity_after_columns_hide():
+    app = LayaTop(demo=True, interval=300)
+    async with app.run_test(size=(40, 18)) as pilot:
+        await pilot.pause(0.3)
+        app.action_sort_by("name")
+        await pilot.pause()
+        table = app.query_one(DataTable)
+        column_index = table.get_column_index("cpu")
+        assert column_index == 1  # PID and category moved to the Enter inspector.
+        header_x = 2 + sum(c.get_render_width(table) for c in table.ordered_columns[:column_index])
+        await pilot.click("#processes", offset=(header_x, 1))
+        await pilot.pause()
+        assert app.sort_column == "cpu"

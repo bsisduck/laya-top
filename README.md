@@ -103,15 +103,19 @@ Apache-2.0 components; they are not relicensed to MIT. See [NOTICE](NOTICE).
 - Review a bounded, in-memory action history for the current session.
 - Export read-only JSON snapshots for scripts and investigations.
 
-At narrow widths the side inspector hides; **Enter** opens the same information
-in a scrollable dialog. A terminal of **120 × 35** or larger is comfortable;
-**80 × 24** works with horizontal table scrolling. Colors respect `NO_COLOR`.
+The layout fits the terminal as you resize it, including while updates are frozen.
+Process names expand into available space; secondary columns and the side inspector
+hide when space is tight. **Enter** opens all process details in a scrollable dialog.
+Short windows collapse the graphs and view buttons to leave room for process rows;
+their keyboard shortcuts remain available. **80 × 24** fits the core columns without
+horizontal scrolling; **145 × 35** or larger also shows the side inspector.
+Colors respect `NO_COLOR`.
 
 ## Controls
 
 | Key | Action |
 | --- | --- |
-| Arrows, PageUp, PageDown | Navigate; left/right scroll wide tables |
+| Up/Down, PageUp, PageDown | Navigate processes |
 | `/` | Focus search |
 | Enter | Inspect process / open category / finish searching |
 | Escape | Leave search, clear search, or cancel a dialog |

@@ -14,11 +14,12 @@ from .actions import ACTIONS, Controller
 from .collector import Collector, DemoCollector
 from .config import load_labels, save_label
 from .intelligence import Intelligence
+from .layout import table_columns
 from .models import Process, Snapshot, age, size
 from .query import matches, order, tree_order
 from .screens import HELP, ConfirmScreen, DetailScreen, LabelScreen, description
 from .tagging import COLORS, Tag, label_key, rule_tag
-from .widgets import PercentHistory
+from .widgets import PercentHistory, ProcessTable
 
 
 class LayaTop(App):
@@ -70,7 +71,7 @@ class LayaTop(App):
         self.mode, self.sort_column, self.reverse = "processes", "cpu", False
         self.mine, self.frozen = False, False
         self._sampling = False
-        self._table_mode = ""
+        self._table_columns: tuple[tuple[str, str, int], ...] = ()
         self._rendering = False
         self._selection_lost = False
         self._cpu_history: deque[float] = deque(maxlen=60)
@@ -116,7 +117,7 @@ class LayaTop(App):
             yield Static("", id="mode-note")
         yield Static("Sampling your machine…", id="summary")
         with Horizontal(id="workspace"):
-            yield DataTable(
+            yield ProcessTable(
                 id="processes", cursor_type="row", zebra_stripes=True, show_row_labels=False
             )
             with VerticalScroll(id="inspector"):
@@ -127,14 +128,24 @@ class LayaTop(App):
     def on_mount(self):
         self.theme = "textual-dark"
         self.query_one("#processes", DataTable).focus()
-        self.set_class(self.size.width < 115, "compact")
-        self.set_class(self.size.width < 85, "narrow")
+        self.resize_layout(self.size)
         self.set_interval(self.interval, self.tick)
         self.tick()
 
     def on_resize(self, event):
-        self.set_class(event.size.width < 115, "compact")
-        self.set_class(event.size.width < 85, "narrow")
+        self.resize_layout(event.size)
+
+    def resize_layout(self, size):
+        self.set_class(size.width < 145, "compact")
+        self.set_class(size.width < 85, "narrow")
+        self.set_class(size.height < 30, "short")
+        self.set_class(size.height < 20, "flat")
+        self.set_class(size.width < 65, "slim")
+
+    @on(ProcessTable.ViewportResized)
+    def table_resized(self):
+        # Measure after the table itself resizes, not the earlier App event.
+        self.render_table(resizing=True)
 
     def tick(self):
         if not self._sampling and not self.frozen:
@@ -202,10 +213,17 @@ class LayaTop(App):
         processes.sort(key=lambda p: p.identity.key not in self.pins)
         return processes
 
-    def render_table(self):
-        if not self.snapshot or len(self.screen_stack) != 1:
+    def render_table(self, *, resizing=False):
+        if not self.snapshot or (len(self.screen_stack) != 1 and not resizing):
             return
         table = self.query_one("#processes", DataTable)
+        # Reserve a scrollbar even before rows are populated, so sampling cannot
+        # push the last column off screen when a vertical scrollbar appears.
+        width = table.content_size.width - table.styles.scrollbar_size_vertical
+        columns = table_columns(width, self.mode == "groups", table.cell_padding)
+        changed_columns = columns != self._table_columns
+        if resizing and not changed_columns:
+            return
         previous = self.selected
         scroll_y, scroll_x = table.scroll_y, table.scroll_x
         processes = self.filtered()
@@ -213,23 +231,11 @@ class LayaTop(App):
         self._rendering = True
         keys = []
         with self.batch_update(), table.prevent(DataTable.RowHighlighted):
-            table.clear(columns=self._table_mode != self.mode)
-            if self._table_mode != self.mode:
-                if self.mode == "groups":
-                    table.add_columns("CATEGORY", "PROCESSES", "CPU %", "RSS TOTAL", "TOP CONSUMER")
-                else:
-                    for label, width in (
-                        ("PID", 6),
-                        ("PROCESS", 24),
-                        ("CATEGORY", 16),
-                        ("CPU %", 7),
-                        ("MEMORY", 10),
-                        ("USER", 12),
-                        ("STATE", 9),
-                        ("SOURCE", 8),
-                    ):
-                        table.add_column(label, width=width)
-                self._table_mode = self.mode
+            table.clear(columns=changed_columns)
+            if changed_columns:
+                for key, label, width in columns:
+                    table.add_column(label, width=width, key=key)
+                self._table_columns = columns
             if self.mode == "groups":
                 groups = defaultdict(list)
                 for process in processes:
@@ -240,14 +246,14 @@ class LayaTop(App):
                     key = "group:" + category
                     keys.append(key)
                     top = max(members, key=lambda p: p.cpu)
-                    table.add_row(
-                        Text(category, style=COLORS[category]),
-                        str(len(members)),
-                        f"{sum(p.cpu for p in members):.1f}",
-                        size(sum(p.rss for p in members)),
-                        Text(top.name),
-                        key=key,
-                    )
+                    values = {
+                        "category": Text(category, style=COLORS[category]),
+                        "count": str(len(members)),
+                        "cpu": f"{sum(p.cpu for p in members):.1f}",
+                        "memory": size(sum(p.rss for p in members)),
+                        "name": Text(top.name, overflow="ellipsis", no_wrap=True),
+                    }
+                    table.add_row(*(values[c[0]] for c in columns), key=key)
             else:
                 rows = tree_order(processes) if self.mode == "tree" else [(p, 0) for p in processes]
                 for process, depth in rows:
@@ -257,20 +263,20 @@ class LayaTop(App):
                     prefix = "★ " if key in self.pins else ""
                     prefix += "  " * depth + ("└ " if depth else "")
                     cpu_style = "bold #f4c97b" if process.cpu > 50 else "#c9d7e8"
-                    table.add_row(
-                        str(process.pid),
-                        Text(prefix + process.name),
-                        Text(
+                    values = {
+                        "pid": str(process.pid),
+                        "name": Text(prefix + process.name, overflow="ellipsis", no_wrap=True),
+                        "category": Text(
                             tag.category + (" ~" if tag.source == "Laya" else ""),
                             style=COLORS[tag.category],
                         ),
-                        Text(f"{process.cpu:.1f}", style=cpu_style),
-                        size(process.rss),
-                        Text(process.user),
-                        process.status,
-                        tag.source,
-                        key=key,
-                    )
+                        "cpu": Text(f"{process.cpu:.1f}", style=cpu_style),
+                        "memory": size(process.rss),
+                        "user": Text(process.user),
+                        "state": process.status,
+                        "source": tag.source,
+                    }
+                    table.add_row(*(values[c[0]] for c in columns), key=key)
             if previous in keys:
                 table.move_cursor(row=keys.index(previous), animate=False, scroll=False)
                 self.selected = previous
@@ -285,7 +291,9 @@ class LayaTop(App):
                 table.show_cursor = True
                 table.move_cursor(row=0, animate=False, scroll=False)
                 self.selected = keys[0]
-            table.scroll_to(x=scroll_x, y=scroll_y, animate=False, force=True)
+            table.scroll_to(
+                x=0 if changed_columns else scroll_x, y=scroll_y, animate=False, force=True
+            )
         self._rendering = False
         marker = "  FROZEN" if self.frozen else ""
         self.query_one("#summary", Static).update(
@@ -374,8 +382,8 @@ class LayaTop(App):
     def header_selected(self, event: DataTable.HeaderSelected):
         if self.mode == "groups":
             return
-        columns = {0: "pid", 1: "name", 3: "cpu", 4: "memory"}
-        if column := columns.get(event.column_index):
+        column = event.column_key.value
+        if column in ("pid", "name", "cpu", "memory"):
             if self.sort_column == column:
                 self.reverse = not self.reverse
                 self.render_table()
