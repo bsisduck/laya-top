@@ -243,15 +243,14 @@ class LayaTop(App):
         self._rendering = True
         rows = tree_order(processes) if self.mode == "tree" else [(p, 0) for p in processes]
         keys = [] if self.mode == "groups" else [process.identity.key for process, _ in rows]
-        incremental = (
+        reconcile = (
             self.mode != "groups"
             and self._rendered_mode == self.mode
             and not changed_columns
             and "pid" in table.columns
-            and set(keys) == set(self._rendered_keys)
         )
         with self.batch_update(), table.prevent(DataTable.RowHighlighted):
-            if not incremental:
+            if not reconcile:
                 table.clear(columns=changed_columns)
                 if changed_columns:
                     for key, label, width in columns:
@@ -280,11 +279,15 @@ class LayaTop(App):
                     table.add_row(*(values[c[0]] for c in columns), key=key)
             else:
                 signatures = {}
+                previous_keys = set(self._rendered_keys)
+                if reconcile:
+                    for key in previous_keys - set(keys):
+                        table.remove_row(key)
                 for process, depth in rows:
                     key = process.identity.key
                     signature = self.process_signature(process, depth)
                     signatures[key] = signature
-                    if incremental:
+                    if reconcile and key in previous_keys:
                         previous_cells = self._rendered_cells.get(key, {})
                         for column, _, _ in columns:
                             if previous_cells.get(column) != signature[column]:
@@ -299,7 +302,7 @@ class LayaTop(App):
                             *(self.process_cell(c[0], signature[c[0]]) for c in columns),
                             key=key,
                         )
-                if incremental and keys != self._rendered_keys:
+                if reconcile and keys != self._rendered_keys:
                     rank = {str(process.pid): index for index, (process, _) in enumerate(rows)}
                     table.sort("pid", key=lambda pid: rank[str(pid)])
                 self._rendered_cells = signatures

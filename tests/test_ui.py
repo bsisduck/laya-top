@@ -259,3 +259,54 @@ async def test_unchanged_process_metadata_reuses_rule_tags(monkeypatch):
         assert clears == 0
         assert cell_updates == 0
         assert sorts == 0
+
+
+async def test_process_churn_adds_and_removes_only_changed_rows(monkeypatch):
+    app = LayaTop(demo=True, interval=300)
+    async with app.run_test(size=(120, 35)) as pilot:
+        await pilot.pause(0.3)
+        table = app.query_one(DataTable)
+        assert app.snapshot is not None
+        removed = app.snapshot.processes[0]
+        replacement = replace(
+            app.snapshot.processes[-1],
+            identity=replace(app.snapshot.processes[-1].identity, pid=99_999),
+            name="replacement",
+        )
+        app.snapshot = replace(
+            app.snapshot,
+            processes=app.snapshot.processes[1:] + (replacement,),
+        )
+        app.tags[replacement.identity.key] = app.tags[removed.identity.key]
+
+        clears = 0
+        additions = 0
+        removals = 0
+        original_clear = table.clear
+        original_add_row = table.add_row
+        original_remove_row = table.remove_row
+
+        def counted_clear(*args, **kwargs):
+            nonlocal clears
+            clears += 1
+            return original_clear(*args, **kwargs)
+
+        def counted_add_row(*args, **kwargs):
+            nonlocal additions
+            additions += 1
+            return original_add_row(*args, **kwargs)
+
+        def counted_remove_row(*args, **kwargs):
+            nonlocal removals
+            removals += 1
+            return original_remove_row(*args, **kwargs)
+
+        monkeypatch.setattr(table, "clear", counted_clear)
+        monkeypatch.setattr(table, "add_row", counted_add_row)
+        monkeypatch.setattr(table, "remove_row", counted_remove_row)
+        app.render_table()
+
+        assert table.row_count == 12
+        assert clears == 0
+        assert additions == 1
+        assert removals == 1
