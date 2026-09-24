@@ -63,12 +63,16 @@ class CoreMLBackend:
             return Tag("Other", "Unknown", "Laya prompt does not fit this model.")
         answer = self.agent.predict(candidate, QUESTION)["answers"]["category"]
         probabilities = answer["probabilities"]
-        values = sorted((float(v) for v in probabilities.values()), reverse=True)
         choice = answer["choice"]
+        if not isinstance(probabilities, dict) or set(probabilities) != set(CHOICES):
+            raise ValueError("Invalid model output")
+        converted = {key: float(value) for key, value in probabilities.items()}
+        values = sorted(converted.values(), reverse=True)
         if (
             choice not in CATEGORY_MAP
-            or len(values) < 2
             or not all(math.isfinite(v) and 0 <= v <= 1 for v in values)
+            or not math.isclose(sum(values), 1, rel_tol=1e-4, abs_tol=1e-4)
+            or converted[choice] != values[0]
         ):
             raise ValueError("Invalid model output")
         if values[0] < 0.7 or values[0] - values[1] < 0.15 or choice == "other":

@@ -24,6 +24,8 @@ def test_protected_self_parent_root_other_user_and_demo(process):
 
 def test_pid_reuse_never_sends_signal(process, monkeypatch):
     controller = Controller()
+    controller.uid = 501
+    process = replace(process, uid=controller.uid)
     live = Mock()
     live.create_time.return_value = process.identity.created + 10
     monkeypatch.setattr(psutil, "Process", Mock(return_value=live))
@@ -34,6 +36,8 @@ def test_pid_reuse_never_sends_signal(process, monkeypatch):
 
 def test_owner_change_and_exit_never_send_signal(process, monkeypatch):
     controller = Controller()
+    controller.uid = 501
+    process = replace(process, uid=controller.uid)
     live = Mock()
     live.create_time.return_value = process.identity.created
     live.uids.return_value = Mock(real=os.getuid() + 1, effective=os.getuid() + 1)
@@ -42,6 +46,16 @@ def test_owner_change_and_exit_never_send_signal(process, monkeypatch):
     live.terminate.assert_not_called()
     monkeypatch.setattr(psutil, "Process", Mock(side_effect=psutil.NoSuchProcess(process.pid)))
     assert "already exited" in controller.execute(process, "terminate").message
+
+
+def test_unsupported_action_never_opens_process(process, monkeypatch):
+    controller = Controller()
+    monkeypatch.setattr(psutil, "Process", Mock(side_effect=AssertionError("must not open")))
+
+    result = controller.execute(process, "unsupported")
+
+    assert not result.ok
+    assert result.message == "Unsupported action."
 
 
 @pytest.mark.skipif(os.getuid() == 0, reason="Controller intentionally forbids root processes")

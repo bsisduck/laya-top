@@ -1,9 +1,21 @@
+import hashlib
+import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 
 import pytest
 
-from laya_top import query
-from laya_top.config import load_labels, save_label
+from laya_top import config, query
+from laya_top.config import (
+    MODEL_REPO,
+    MODEL_REVISION,
+    discover_model,
+    load_labels,
+    model_revision_path,
+    save_label,
+    verify_model_bundle,
+    write_model_revision,
+)
 from laya_top.models import Identity, clean
 from laya_top.query import matches, order, tree_order
 from laya_top.tagging import Tag, application, label_key, rule_tag
@@ -79,6 +91,75 @@ def test_labels_atomic_reset_and_corrupt_config(tmp_path):
     assert load_labels(path) == {}
     with pytest.raises(ValueError):
         save_label("x", "not-a-category", path)
+
+
+def test_concurrent_label_updates_preserve_each_change(tmp_path):
+    path = tmp_path / "config/labels.json"
+    keys = [f"/bin/tool-{index}" for index in range(24)]
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(lambda key: save_label(key, "AI", path), keys))
+
+    assert load_labels(path) == dict.fromkeys(keys, "AI")
+
+
+def _model_fixture(tmp_path, monkeypatch):
+    root = tmp_path / "model"
+    payload = root / "weights/model.bin"
+    payload.parent.mkdir(parents=True)
+    payload.write_bytes(b"reviewed model bytes")
+    manifest = {
+        "format_version": 1,
+        "repository": MODEL_REPO,
+        "files": {
+            "weights/model.bin": {
+                "bytes": payload.stat().st_size,
+                "sha256": hashlib.sha256(payload.read_bytes()).hexdigest(),
+            }
+        },
+    }
+    manifest_bytes = json.dumps(manifest, sort_keys=True).encode()
+    (root / "coreml_config.json").write_bytes(manifest_bytes)
+    monkeypatch.setattr(config, "MODEL_MANIFEST_SHA256", hashlib.sha256(manifest_bytes).hexdigest())
+    return root, payload
+
+
+def test_model_bundle_verification_detects_corruption(tmp_path, monkeypatch):
+    root, payload = _model_fixture(tmp_path, monkeypatch)
+    assert verify_model_bundle(root) == (1, len(b"reviewed model bytes"))
+
+    payload.write_bytes(b"tampered model bytes")
+    with pytest.raises(ValueError, match="checksum|size"):
+        verify_model_bundle(root)
+
+
+def test_model_bundle_verification_rejects_unsafe_manifest(tmp_path, monkeypatch):
+    root, _ = _model_fixture(tmp_path, monkeypatch)
+    manifest_path = root / "coreml_config.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"] = {"../escape": {"bytes": 0, "sha256": "0" * 64}}
+    manifest_bytes = json.dumps(manifest, sort_keys=True).encode()
+    manifest_path.write_bytes(manifest_bytes)
+    monkeypatch.setattr(config, "MODEL_MANIFEST_SHA256", hashlib.sha256(manifest_bytes).hexdigest())
+
+    with pytest.raises(ValueError, match="unsafe path"):
+        verify_model_bundle(root)
+
+
+def test_cached_model_requires_verified_revision_marker(tmp_path, monkeypatch):
+    cache_home = tmp_path / "cache"
+    root = cache_home / "laya-top/model"
+    root.mkdir(parents=True)
+    (root / "coreml_config.json").write_text("{}")
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setenv("XDG_CACHE_HOME", str(cache_home))
+    monkeypatch.chdir(work)
+
+    assert discover_model() is None
+    write_model_revision(root)
+    assert model_revision_path(root).read_text().strip() == MODEL_REVISION
+    assert discover_model() == root.resolve()
 
 
 def test_ai_tags_searchable(process):

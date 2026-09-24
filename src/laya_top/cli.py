@@ -5,10 +5,21 @@ import platform
 import sys
 import time
 from dataclasses import asdict
+from pathlib import Path
 
 from . import __version__
 from .collector import Collector, DemoCollector
-from .config import MODEL_REPO, config_dir, discover_model, load_labels, model_dir
+from .config import (
+    MODEL_REPO,
+    MODEL_REVISION,
+    config_dir,
+    discover_model,
+    load_labels,
+    model_dir,
+    model_revision_path,
+    verify_model_bundle,
+    write_model_revision,
+)
 from .tagging import application, rule_tag
 
 
@@ -82,16 +93,23 @@ def main():
         print(json.dumps(diagnostic, indent=2))
         return
     if args.command == "model":
-        target = model or model_dir()
+        target = Path(args.model).expanduser().resolve() if args.model else model_dir()
         if args.operation == "path":
-            print(target)
+            print(model or target)
             return
         try:
             from huggingface_hub import snapshot_download
         except ImportError:
             root.error("Install the laya extra on Apple Silicon, or install huggingface-hub.")
-        print(f"Downloading {MODEL_REPO} to {target}", file=sys.stderr)
-        snapshot_download(MODEL_REPO, local_dir=str(target))
+        print(f"Downloading {MODEL_REPO}@{MODEL_REVISION} to {target}", file=sys.stderr)
+        model_revision_path(target).unlink(missing_ok=True)
+        snapshot_download(MODEL_REPO, revision=MODEL_REVISION, local_dir=str(target))
+        try:
+            count, total = verify_model_bundle(target)
+            write_model_revision(target)
+        except (OSError, ValueError) as error:
+            root.error(f"Downloaded model failed verification: {error}")
+        print(f"Verified {count} files ({total / 1024**2:.1f} MiB).", file=sys.stderr)
         print(target)
         return
     if args.command == "snapshot":
