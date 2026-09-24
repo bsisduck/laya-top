@@ -3,7 +3,7 @@
 Tested on Apple Silicon, macOS 27.0, Python 3.12.13, Textual 8.2.8,
 psutil 7.2.2 and laya-coreml 0.1.0.
 
-- 37 automated tests passed, including a real disposable child process for
+- 40 automated tests passed, including a real disposable child process for
   suspend, resume and SIGTERM, plus mocked reused-PID and ownership-change cases.
 - Terminal interaction tests covered searching, category drill-down, tree view,
   pinning, labels, freeze, small windows, dialog cancellation, force-kill PID
@@ -18,12 +18,17 @@ psutil 7.2.2 and laya-coreml 0.1.0.
 - Full and compact screenshots were exported from the actual Textual UI with
   illustrative hierarchical categories and visually inspected. Reproduce with
   `scripts/capture_demo.py`.
-- At 1,038 processes, reusing process handles and metadata reduced a warm collection
-  cycle from 0.978 to 0.553 seconds (43%). At 854–1,043 rows, an unchanged table
-  render fell from a 0.353-second median to 0.019 seconds (about 18×). A later live
-  end-to-end refresh, including collection, tagging and rendering, had a 0.101-second
-  median across 902 processes. The host had concurrent Docker saturation, so these
-  are local regression measurements rather than general performance guarantees.
+- Initial caching reduced a warm 1,038-process collection cycle from 0.978 to 0.553
+  seconds while the host was saturated. In the final quieter 30-iteration run, 881
+  processes took 17.3 ms median and 18.5 ms p95 after a 117.0 ms cold sample.
+- A profiled unchanged 960-row render fell from 21.6 to 6.9 ms after styled-cell
+  allocation became conditional. The final unprofiled 1,000-row run measured 3.6 ms
+  median and 6.8 ms p95. Tests verify that an unchanged refresh performs no row clear,
+  cell update or sort.
+- Incremental add/remove reconciliation prevents one short-lived process from rebuilding
+  the complete table. Under the same profiled live workload, end-to-end refresh median
+  fell from 159.2 to 74.7 ms across roughly 950 processes. Host load still affects these
+  local regression measurements; they are not general performance guarantees.
 - Wheel and source archives built successfully; the wheel includes the TUI stylesheet.
 - Real offline Core ML inference on the synthetic name `Google Chrome` returned
   the Browser category. Model loading took 84.47 seconds; the first prediction

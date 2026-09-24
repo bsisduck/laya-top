@@ -32,8 +32,9 @@ backend. It is a working process manager, not an autonomous cleanup agent.
    then call psutil's PID-reuse-aware signal methods. No shell, sudo, automatic
    escalation or recursive termination. UI confirmation captures an immutable target.
 5. `app`: Textual screen and modals; psutil sampling runs off the UI thread. Each
-   snapshot is immutable. Keyed rows update changed cells and reorder in place;
-   selection follows process identity rather than row number.
+   snapshot is immutable. Keyed rows update changed cells, add or remove individual
+   process identities, and reorder only when needed; selection follows process identity
+   rather than row number.
 6. `cli/config`: installable Python entry point, explicit local paths, diagnostics,
    machine-readable snapshots and atomic per-user category overrides.
 

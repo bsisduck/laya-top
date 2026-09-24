@@ -208,7 +208,8 @@ session-only and never modify your saved configuration.
 
 The collector reuses process handles and caches stable metadata instead of reading
 executable paths and usernames every refresh. The table keeps rows by immutable
-process identity, updates changed cells, and reorders them in place. On machines
+process identity, updates changed cells, reconciles process starts/exits individually,
+and reorders only when needed. On machines
 where model memory is more important than local suggestions, `--no-ai` avoids
 loading Core ML while retaining rules and subcategories.
 
@@ -220,6 +221,7 @@ uv run --no-sync ruff check src tests scripts
 uv run --no-sync ruff format --check src tests scripts
 uv run --no-sync pytest -q
 uv build
+.venv/bin/python scripts/benchmark_refresh.py --skip-live
 uv run --no-sync python scripts/capture_demo.py
 ```
 
@@ -228,6 +230,10 @@ classification caching, UI interaction, stable selection, reused PIDs and proces
 protection. The signal integration test creates its own disposable Python child;
 it never targets an existing user process. A restrictive sandbox may block OS
 process inspection; run these checks in your normal terminal.
+
+Run the benchmark without `--skip-live` from a normal terminal to include the real process
+collector. See [PERFORMANCE.md](docs/PERFORMANCE.md) for regression budgets and the Rust
+evaluation.
 
 Screenshots and distribution archives are generated under ignored `artifacts/`
 and `dist/` directories. See [DESIGN.md](docs/DESIGN.md) for architecture, scope,
