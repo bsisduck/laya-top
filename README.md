@@ -1,5 +1,9 @@
 # laya-top
 
+[![CI](https://github.com/bsisduck/laya-top/actions/workflows/ci.yml/badge.svg)](https://github.com/bsisduck/laya-top/actions/workflows/ci.yml)
+[![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%E2%80%933.13-3776AB.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
+
 **Know what is running. Understand the tags. Stay in control.**
 
 A keyboard-and-mouse terminal process monitor inspired by htop and asitop, with
@@ -23,9 +27,22 @@ Illustrative layout and values. `~` means a model suggestion, not a verified fac
 
 ## Install and run
 
-From a downloaded or cloned project directory:
+For a global command after the repository is public, install [uv](https://docs.astral.sh/uv/)
+and install directly from GitHub:
 
 ```sh
+# macOS with Homebrew; the Laya extra activates only on Apple Silicon
+brew install uv
+uv tool install --python 3.12 "laya-top[laya] @ git+https://github.com/bsisduck/laya-top.git"
+laya-top
+```
+
+On Linux, use the same `uv tool install` command without `[laya]`. For a project-local
+installation that includes the launchers and development files, clone the repository:
+
+```sh
+git clone https://github.com/bsisduck/laya-top.git
+cd laya-top
 ./install.sh
 ./laya-top
 ```
@@ -38,7 +55,7 @@ No sudo, shell-profile changes or automatic model download.
 
 On macOS, you can also double-click **`launch.command`** after installing.
 
-For a PATH command in a separate tool environment, with uv installed:
+From an existing local checkout, install a PATH command in a separate tool environment:
 
 ```sh
 uv tool install --python 3.12 '.[laya]'
@@ -48,6 +65,9 @@ laya-top
 This installs from your local checkout. This project is not published to PyPI yet.
 For the monitor without optional model dependencies, use `./install.sh --no-ai`
 or `uv tool install --python 3.12 .`.
+
+The examples below use the checkout launcher `./laya-top`. If you installed the
+global uv tool, use `laya-top` without the `./` prefix.
 
 ## Enable local intelligence
 
@@ -61,7 +81,10 @@ with macOS 15+**, install the default extra, then explicitly download the model:
 
 The default ANE FP16 bundle is approximately 650 MB. It is stored under
 `~/.cache/laya-top/model` (or `$XDG_CACHE_HOME/laya-top/model`). Model loading can
-take a minute or more on first use; the process monitor remains responsive.
+take a minute or more on first use; the process monitor remains responsive. The
+download command pins a reviewed repository revision, verifies an application-owned
+manifest checksum and every declared file hash, then marks the cache complete. Rerun
+the command once if a cache created by an older laya-top release is not discovered.
 
 Reuse an existing local model:
 
@@ -72,8 +95,9 @@ export LAYA_TOP_MODEL=/path/to/model
 ./laya-top
 ```
 
-Discovery order: `--model`, `LAYA_TOP_MODEL`, the cache directory, `./models/snake`,
-then `../laya-coreml/models/snake`. The project launcher sets its working directory
+Discovery order: `--model`, `LAYA_TOP_MODEL`, a verified cache directory,
+`./models/snake`, then `../laya-coreml/models/snake`. Explicit and development paths
+remain the caller's responsibility. The project launcher sets its working directory
 to the checkout, so an adjacent Laya Snake installation is reused automatically.
 
 ```sh
@@ -174,10 +198,12 @@ classifications per second, with a 64-item queue and 512-result in-memory LRU ca
 The ANE prompt fits within 96 tokens; long names are shortened against the actual
 tokenizer. The UI continues to sample while the model loads or predicts.
 
-A suggestion requires a top probability of at least 0.70 and a 0.15 lead over the
-runner-up. These are conservative display heuristics, **not validated accuracy
-thresholds**. Laya can be confidently wrong. Use your own labels when necessary.
-No model output can trigger a signal or override process protection.
+A suggestion must contain the exact known category schema, finite normalized
+probabilities, and a selected argmax. It also requires a top probability of at least
+0.70 and a 0.15 lead over the runner-up. These are conservative display heuristics,
+**not validated accuracy thresholds**. Laya can be confidently wrong. Use your own
+labels when necessary. No model output can trigger a signal or override process
+protection.
 
 ## Process controls and privacy
 
@@ -189,8 +215,9 @@ No model output can trigger a signal or override process protection.
 - SIGTERM requests graceful exit; it does not guarantee exit. There is no timed
   or automatic escalation to SIGKILL. Force kill needs a separate confirmation.
 - No recursive process-tree kill, group kill, automatic cleanup or cloud telemetry.
-- Labels are the only normal persistent app data, saved atomically to
-  `~/.config/laya-top/labels.json` (or `$XDG_CONFIG_HOME/laya-top/labels.json`).
+- Labels are the only normal persistent app data, saved with an inter-process lock,
+  atomic replacement, and filesystem sync to `~/.config/laya-top/labels.json` (or
+  `$XDG_CONFIG_HOME/laya-top/labels.json`).
 - Action history and AI caches are memory-only. JSON snapshots deliberately
   include process names, owners and executable paths, so review them before sharing.
 
@@ -240,11 +267,16 @@ Screenshots and distribution archives are generated under ignored `artifacts/`
 and `dist/` directories. [DESIGN.md](docs/DESIGN.md) preserves the concise original design,
 while [VALIDATION.md](docs/VALIDATION.md) records the tested environment and results.
 
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md), the
+[Code of Conduct](CODE_OF_CONDUCT.md), [Security Policy](SECURITY.md), and
+[Changelog](CHANGELOG.md) before opening a pull request or security report.
+
 ## Platform status and limits
 
 - **Validated locally:** Apple Silicon, macOS 27, Python 3.12, real Core ML inference.
-- **Designed for Linux:** psutil monitoring, tags and POSIX controls. Linux has
-  not yet been exercised on a real Linux host in this release. Core ML is macOS-only.
+- **Validated in Linux containers:** Debian-based Python 3.11, 3.12, and 3.13
+  completed the automated suite. A physical Linux host remains to be tested;
+  Core ML is macOS-only.
 - **Windows:** not supported in this release.
 - GPU/ANE utilization, power sensors and per-process network rates are not
   available. Unlike asitop, this version does not invoke privileged power tools.

@@ -3,8 +3,16 @@
 Tested on Apple Silicon, macOS 27.0, Python 3.12.13, Textual 8.2.8,
 psutil 7.2.2 and laya-coreml 0.1.0.
 
-- 40 automated tests passed, including a real disposable child process for
+- 52 automated tests passed, including a real disposable child process for
   suspend, resume and SIGTERM, plus mocked reused-PID and ownership-change cases.
+- The suite also passed in Debian-based containers on Python 3.11, 3.12, and
+  3.13: 51 passed and the real signal test skipped because each container ran as
+  root. The tested policy intentionally refuses root-owned process controls.
+- Model hardening tests cover the pinned download revision, application-owned
+  manifest digest, per-file size/hash checks, unsafe paths, corrupt artifacts,
+  exact output schemas, normalized probabilities, and argmax agreement.
+- Concurrent configuration tests verify that multiple writers preserve every
+  label update through the lock and atomic replacement protocol.
 - Terminal interaction tests covered searching, category drill-down, tree view,
   pinning, labels, freeze, small windows, dialog cancellation, force-kill PID
   entry, stable selection after sorting, and immutable confirmation targets.
@@ -31,12 +39,19 @@ psutil 7.2.2 and laya-coreml 0.1.0.
   local regression measurements; they are not general performance guarantees.
 - An aggressive rules-only TUI run used approximately 60 MiB RSS. This is a single-host
   observation rather than a memory guarantee.
-- Wheel and source archives built successfully; the wheel includes the TUI stylesheet.
+- Wheel and source archives built successfully. An isolated wheel installation
+  ran `laya-top --version` and a demo JSON snapshot. Metadata includes repository,
+  issue, documentation, security and changelog links; the wheel includes the TUI
+  stylesheet, MIT license and third-party notice.
+- The public CI definition parses as YAML and mirrors the Linux/macOS Python
+  3.11–3.13 matrix plus lint, format, build and isolated-wheel smoke checks. Its
+  first hosted run necessarily waits for the repository to be published.
 - Real offline Core ML inference on the synthetic name `Google Chrome` returned
   the Browser category. Model loading took 84.47 seconds; the first prediction
   took 79.78 ms. These include cold-start effects and are not steady-state benchmarks.
 
 This establishes integration, not classification accuracy. No labeled process
 corpus was evaluated. Linux, Intel Macs, other macOS releases and Python 3.11/3.13
-have not been exercised on physical hosts in this release. Published model/runtime
-requirements are documented separately from what was tested here.
+have not been exercised on physical hosts in this release. The Linux results above
+come from containers. Published model/runtime requirements are documented separately
+from what was tested here.

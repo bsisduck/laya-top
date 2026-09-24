@@ -323,7 +323,8 @@ started until an unknown process needs classification. The boundary has these co
 - no command-line arguments, environment variables, user names, full paths, file contents,
   or network activity in prompts;
 - calibration temperatures clamped to the conservative range 0.5–5 before prediction;
-- probability validation for finite values in `[0, 1]`;
+- exact probability keys for the seven known choices, finite values in `[0, 1]`,
+  normalized mass, and agreement between the selected choice and the argmax;
 - display acceptance only when the top score is at least 0.70 and leads the runner-up by at
   least 0.15; the model's Other choice remains inconclusive.
 
@@ -332,17 +333,22 @@ model can still be wrong, so each suggestion is visibly marked and can be overri
 
 ### Model trust boundary
 
-The current downloader selects the default revision of a Hugging Face model repository. Laya
-Top does not yet pin an immutable revision or verify an application-owned checksum/manifest,
-and it does not impose a disk quota. Release hardening should pin a reviewed commit, verify a
-versioned artifact manifest before first load, and distinguish complete bundles from partial
-downloads.
+The downloader pins the reviewed Hugging Face repository commit recorded in
+[`config.py`](src/laya_top/config.py). It checks the manifest against an application-owned
+SHA-256 value, validates the repository and format fields, rejects unsafe paths, and verifies
+the size and SHA-256 digest of every declared file. Only a completely verified download gets
+an atomically written revision marker, and automatic cache discovery requires that marker.
+Partial, corrupt, or unexpectedly revised downloads therefore remain undiscoverable.
 
-The current output check validates the selected label, probability count, finite range, and
-acceptance thresholds. It does not yet require the probability keys to exactly match the known
-schema, require their sum to be normalized, or prove that the selected label is the argmax.
-Those conditions belong in the backend contract and adversarial unit tests before model output
-is treated as more than a suggestion.
+Explicit `--model`, `LAYA_TOP_MODEL`, and development-checkout paths remain an operator trust
+decision and do not receive the cache marker check. The downloader does not yet preflight free
+disk capacity. A failed download may leave recreatable files in the cache, but it removes the
+trusted revision marker before starting and will not select that cache automatically.
+
+The backend requires the exact known probability schema, finite values in `[0, 1]`, normalized
+mass, and agreement between the selected choice and the argmax before applying the conservative
+display thresholds. Adversarial unit tests cover missing keys, invalid ranges, non-finite and
+non-normalized values, and choice/argmax disagreement.
 
 ### Backpressure and failure behavior
 
@@ -517,21 +523,22 @@ variables are unset.
 
 | Data | Preferred location | Lifetime and handling |
 | --- | --- | --- |
-| Category overrides | `$XDG_CONFIG_HOME/laya-top/labels.json` | Persistent user configuration; values validated; temporary file then `os.replace()` |
-| Model bundle | `$XDG_CACHE_HOME/laya-top/model` | Re-creatable local cache; downloaded only by command |
+| Category overrides | `$XDG_CONFIG_HOME/laya-top/labels.json` | Persistent user configuration; values validated; locked, synced temporary file then `os.replace()` |
+| Model bundle | `$XDG_CACHE_HOME/laya-top/model` | Re-creatable local cache; explicit pinned download with verified revision marker |
 | Model override | `--model` or `LAYA_TOP_MODEL` | Explicit runtime selection; not copied |
 | Action history | Memory | Bounded to the current session |
 | AI result cache | Memory | Bounded LRU; rebuilt after restart |
 | JSON snapshot | User-selected stdout/file | Explicit export; may contain owner names and executable paths |
 
-Model discovery is deterministic: command-line path, environment path, XDG cache, local
-`models/snake`, then an adjacent `laya-coreml/models/snake` checkout. Monitoring never triggers
-a download.
+Model discovery is deterministic: command-line path, environment path, verified XDG cache,
+local `models/snake`, then an adjacent `laya-coreml/models/snake` checkout. Monitoring never
+triggers a download. Development paths intentionally remain usable without a revision marker.
 
-Atomic replacement prevents readers from seeing a partially written label file. It does not
-claim power-loss durability because the application does not fsync the file and containing
-directory. The read-modify-replace sequence also has no inter-process lock; two Laya Top
-instances saving labels concurrently can overwrite one another's most recent change.
+Label updates acquire a process-wide mutex and an advisory filesystem lock before reading the
+latest file. The replacement file is flushed and fsynced, atomically installed with
+`os.replace()`, and followed by a directory fsync. This prevents lost updates between normal
+concurrent instances and prevents readers from observing partial JSON. Advisory locks still
+depend on all writers following the same protocol; manual edits are outside that guarantee.
 
 ## 14. CLI and operating modes
 
@@ -650,10 +657,9 @@ release work that a rewrite inherits.
 
 Known technical risks that do not currently violate the local-monitoring safety boundary are:
 
-- mutable, unpinned model downloads without an application-owned checksum;
-- incomplete model-output schema and argmax validation;
-- last-writer-wins label updates between concurrent application instances;
 - model loads that cannot be interrupted once the backend call has started;
+- download capacity is not checked before retrieving the approximately 650 MB model;
+- explicitly selected development model paths are trusted without the verified-cache marker;
 - performance budgets that are measured locally but not yet enforced by CI;
 - Linux behavior that has not been validated on a physical Linux host.
 
@@ -684,7 +690,8 @@ Tests are divided by boundary rather than duplicating implementation details.
 | --- | --- |
 | Domain/unit | Identity, sanitization, query syntax, tree cycles, tag rules and subcategories |
 | Collector | Static and state metadata reuse across consecutive samples |
-| Intelligence | Prompt metadata minimization, asynchronous de-duplication/cache and load failure |
+| Intelligence | Prompt minimization, asynchronous de-duplication/cache, load failure and adversarial output validation |
+| Persistence/artifacts | Concurrent label writes, model path safety, manifest anchoring and corruption detection |
 | Security policy | Ownership, ancestor protection, reused PID/stale identity and denied actions |
 | Signal integration | Signals only a disposable Python child created by the test |
 | TUI integration | Textual `run_test()` and Pilot drive keys, clicks, resize, search, selection and modals |
@@ -704,6 +711,11 @@ uv build
 
 Run the benchmark without `--skip-live` in a normal terminal to include real process access.
 Sandboxed environments can make process visibility results misleading.
+
+GitHub Actions repeats the unit and integration suite on macOS and Ubuntu with Python
+3.11–3.13. A separate Linux job enforces Ruff checks, builds both distributions, installs the
+wheel into an isolated environment, and exercises the installed entry point and demo snapshot.
+Actions are pinned to reviewed commit SHAs and the workflow grants read-only repository access.
 
 ## 20. Diagnostics and observability
 
@@ -725,12 +737,13 @@ adding command lines or environment variables because those may contain secrets.
 | --- | --- | --- | --- | --- |
 | Apple Silicon macOS | Supported | Supported with policy checks | Supported through Core ML | Validated locally |
 | Intel macOS | Designed through psutil/Textual | POSIX path expected | Not supported by current Laya extra | Not release-validated |
-| Linux | Designed through psutil/Textual | POSIX path expected | No Core ML backend | Needs physical-host validation |
+| Linux | Automated suite passes in Debian containers | Policy tests pass; root container skips the disposable-signal test | No Core ML backend | Physical-host validation pending |
 | Windows | No release support | POSIX action model incompatible | No current backend | Out of scope |
 
 The documented local validation environment is Apple Silicon, macOS 27, Python 3.12,
-Textual 8.2.8, psutil 7.2.2, and laya-coreml 0.1.0. Dependency ranges in the project metadata
-define the supported install surface; this table records actual validation separately.
+Textual 8.2.8, psutil 7.2.2, and laya-coreml 0.1.0. Debian-based containers cover Python
+3.11–3.13. Dependency ranges in the project metadata define the supported install surface;
+this table records actual validation separately.
 
 ## 22. Extension points and roadmap gates
 
@@ -742,7 +755,7 @@ New work should preserve existing boundaries and supply evidence for the gate it
 | New model backend | Intelligence interface returning validated broad categories | Local-only privacy review, bounded worker, platform packaging and labeled-corpus evaluation |
 | Linux native collector | `Snapshot` output contract | Physical Linux benchmarks and parity tests |
 | CI performance gate | Existing benchmark JSON and documented budgets | Stable runner class, variance policy and nonzero regression exit |
-| Hardened model distribution | Explicit download command and local model path | Pinned revision, verified manifest, atomic completion and disk-capacity errors |
+| Model distribution evolution | Pinned revision, anchored manifest and atomic verified marker | Disk-capacity preflight, upstream signatures and a documented revision-update review |
 | Historical storage | New opt-in repository outside live snapshot | Retention controls, schema migration and privacy documentation |
 | Process-family actions | Action controller only | Explicit target preview, per-member identity checks and separate confirmation design |
 | Signed release artifacts | Packaging/release workflow | CI platform matrix, provenance and reproducible build plan |
@@ -784,7 +797,7 @@ own cadence and benchmark before joining the refresh path.
 | Rule-first tagging | Fast, deterministic, explainable, and available everywhere | Model quality is validated and latency/privacy remain bounded |
 | One broad model inference | Keeps prompts and runtime bounded; subcategories remain explainable | A labeled corpus demonstrates a useful second-stage classifier |
 | AI separated from action policy | A probabilistic label must not authorize a signal | Never |
-| Explicit model download | Avoids surprising network and disk use | Keep explicit while adding immutable artifact verification |
+| Explicit pinned model download | Avoids surprising network/disk use and rejects incomplete or changed artifacts | Keep explicit; revisit only if packaging provides equivalent verified assets |
 | Current-user actions only | Clear least-authority boundary for a local TUI | A separately designed privileged helper has a complete threat model |
 | Retained keyed rows | Reduces allocation and preserves selection through reorder/churn | Textual changes its table model or measurements favor another widget |
 | XDG config/cache split | Matches platform convention and separates durable intent from disposable data | Platform-specific packaging requires an adapter |
