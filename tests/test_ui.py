@@ -236,7 +236,26 @@ async def test_unchanged_process_metadata_reuses_rule_tags(monkeypatch):
             return original_clear(*args, **kwargs)
 
         monkeypatch.setattr(table, "clear", counted_clear)
+        cell_updates = 0
+        sorts = 0
+        original_update_cell = table.update_cell
+        original_sort = table.sort
+
+        def counted_update_cell(*args, **kwargs):
+            nonlocal cell_updates
+            cell_updates += 1
+            return original_update_cell(*args, **kwargs)
+
+        def counted_sort(*args, **kwargs):
+            nonlocal sorts
+            sorts += 1
+            return original_sort(*args, **kwargs)
+
+        monkeypatch.setattr(table, "update_cell", counted_update_cell)
+        monkeypatch.setattr(table, "sort", counted_sort)
         await app.collect_sample()
         assert first == 12
         assert calls == first
         assert clears == 0
+        assert cell_updates == 0
+        assert sorts == 0

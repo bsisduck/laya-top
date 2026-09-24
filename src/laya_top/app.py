@@ -282,16 +282,24 @@ class LayaTop(App):
                 signatures = {}
                 for process, depth in rows:
                     key = process.identity.key
-                    values, signature = self.process_cells(process, depth)
+                    signature = self.process_signature(process, depth)
                     signatures[key] = signature
                     if incremental:
                         previous_cells = self._rendered_cells.get(key, {})
                         for column, _, _ in columns:
                             if previous_cells.get(column) != signature[column]:
-                                table.update_cell(key, column, values[column], update_width=False)
+                                table.update_cell(
+                                    key,
+                                    column,
+                                    self.process_cell(column, signature[column]),
+                                    update_width=False,
+                                )
                     else:
-                        table.add_row(*(values[c[0]] for c in columns), key=key)
-                if incremental:
+                        table.add_row(
+                            *(self.process_cell(c[0], signature[c[0]]) for c in columns),
+                            key=key,
+                        )
+                if incremental and keys != self._rendered_keys:
                     rank = {str(process.pid): index for index, (process, _) in enumerate(rows)}
                     table.sort("pid", key=lambda pid: rank[str(pid)])
                 self._rendered_cells = signatures
@@ -328,9 +336,7 @@ class LayaTop(App):
             self.query_one(f"#{name}-view", Button).set_class(self.mode == name, "active-view")
         self.update_inspector()
 
-    def process_cells(
-        self, process: Process, depth: int
-    ) -> tuple[dict[str, object], dict[str, object]]:
+    def process_signature(self, process: Process, depth: int) -> dict[str, object]:
         key = process.identity.key
         tag = self.tags[key]
         prefix = "★ " if key in self.pins else ""
@@ -340,17 +346,7 @@ class LayaTop(App):
         cpu = f"{process.cpu:.1f}"
         cpu_style = "bold #f4c97b" if process.cpu > 50 else "#c9d7e8"
         memory = size(process.rss)
-        values = {
-            "pid": str(process.pid),
-            "name": Text(name, overflow="ellipsis", no_wrap=True),
-            "category": Text(category, style=COLORS[tag.category]),
-            "cpu": Text(cpu, style=cpu_style),
-            "memory": memory,
-            "user": Text(process.user),
-            "state": process.status,
-            "source": tag.source,
-        }
-        signatures = {
+        return {
             "pid": str(process.pid),
             "name": name,
             "category": (category, tag.category),
@@ -360,7 +356,20 @@ class LayaTop(App):
             "state": process.status,
             "source": tag.source,
         }
-        return values, signatures
+
+    @staticmethod
+    def process_cell(column: str, value: object) -> object:
+        if column == "name":
+            return Text(str(value), overflow="ellipsis", no_wrap=True)
+        if column == "category":
+            label, category = value
+            return Text(label, style=COLORS[category])
+        if column == "cpu":
+            cpu, style = value
+            return Text(cpu, style=style)
+        if column == "user":
+            return Text(str(value))
+        return value
 
     def selected_process(self) -> Process | None:
         return self.visible_processes.get(self.selected or "")

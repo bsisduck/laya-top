@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import cached_property
 
 
 @dataclass(frozen=True)
@@ -6,7 +7,7 @@ class Identity:
     pid: int
     created: float
 
-    @property
+    @cached_property
     def key(self) -> str:
         return f"{self.pid}:{self.created:.6f}"
 

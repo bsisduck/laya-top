@@ -60,6 +60,15 @@ def test_sort_and_control_characters(process):
     assert clean("a\x1b[2J\n\x07b") == "a[2Jb"
 
 
+def test_derived_identity_tag_and_query_values_are_cached():
+    identity = Identity(7, 2)
+    tag = Tag("Development", "Rule", "test", subcategory="Runtime")
+
+    assert identity.key is identity.key
+    assert tag.label is tag.label
+    assert query.compile_query("tag:Development") is query.compile_query("tag:Development")
+
+
 def test_labels_atomic_reset_and_corrupt_config(tmp_path):
     path = tmp_path / "config/labels.json"
     save_label("/bin/tool", "AI", path)

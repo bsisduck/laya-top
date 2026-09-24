@@ -2,11 +2,13 @@ import re
 import shlex
 from collections import defaultdict
 from collections.abc import Callable
+from functools import lru_cache
 
 from .models import Process
 from .tagging import Tag, application
 
 
+@lru_cache(maxsize=128)
 def compile_query(query: str) -> Callable[[Process, Tag], bool]:
     if not query.strip():
         return lambda process, tag: True

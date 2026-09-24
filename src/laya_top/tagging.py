@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from pathlib import PurePath
 
 from .models import Process
@@ -90,7 +90,7 @@ class Tag:
     probability: float | None = None
     subcategory: str = "General"
 
-    @property
+    @cached_property
     def label(self) -> str:
         return (
             self.category
