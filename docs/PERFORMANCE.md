@@ -12,15 +12,21 @@ Measure changes with:
 .venv/bin/python scripts/benchmark_refresh.py
 ```
 
-The local regression budgets for 1,000 processes are:
+The target workload is approximately 1,000 processes or rows. The live collector section uses
+the current host process set, so compare runs at similar counts; the render section uses 1,000
+synthetic rows by default. The local timing budgets are:
 
 - warm collection p95 below 100 ms;
-- unchanged table refresh p95 below 25 ms;
-- no full table clear when process identities and columns are unchanged;
-- no model load when AI is disabled or all visible software matches local rules.
+- unchanged table refresh p95 below 25 ms.
 
-These are regression thresholds, not universal product guarantees. Process permissions,
-kernel load, terminal implementation and container activity materially affect measurements.
+The related behavioral requirements are:
+
+- no full table clear when process identities and columns are unchanged;
+- no model load when AI is disabled or all sampled software matches local rules.
+
+The timing values are regression thresholds, not universal product guarantees. Process
+permissions, kernel load, terminal implementation and container activity materially affect
+measurements.
 
 ## Current design
 

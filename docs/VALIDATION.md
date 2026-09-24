@@ -29,6 +29,8 @@ psutil 7.2.2 and laya-coreml 0.1.0.
   the complete table. Under the same profiled live workload, end-to-end refresh median
   fell from 159.2 to 74.7 ms across roughly 950 processes. Host load still affects these
   local regression measurements; they are not general performance guarantees.
+- An aggressive rules-only TUI run used approximately 60 MiB RSS. This is a single-host
+  observation rather than a memory guarantee.
 - Wheel and source archives built successfully; the wheel includes the TUI stylesheet.
 - Real offline Core ML inference on the synthetic name `Google Chrome` returned
   the Browser category. Model loading took 84.47 seconds; the first prediction

@@ -232,12 +232,13 @@ it never targets an existing user process. A restrictive sandbox may block OS
 process inspection; run these checks in your normal terminal.
 
 Run the benchmark without `--skip-live` from a normal terminal to include the real process
-collector. See [PERFORMANCE.md](docs/PERFORMANCE.md) for regression budgets and the Rust
-evaluation.
+collector. See [ARCHITECTURE.md](ARCHITECTURE.md) for the complete runtime, safety and
+performance architecture, and [PERFORMANCE.md](docs/PERFORMANCE.md) for regression budgets
+and the Rust evaluation.
 
 Screenshots and distribution archives are generated under ignored `artifacts/`
-and `dist/` directories. See [DESIGN.md](docs/DESIGN.md) for architecture, scope,
-validation strategy and the next development steps.
+and `dist/` directories. [DESIGN.md](docs/DESIGN.md) preserves the concise original design,
+while [VALIDATION.md](docs/VALIDATION.md) records the tested environment and results.
 
 ## Platform status and limits
 

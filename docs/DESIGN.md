@@ -1,5 +1,9 @@
 # Design and implementation plan
 
+> The comprehensive current architecture, including runtime diagrams, safety boundaries,
+> optimizations, feature ownership, platform status, and evolution gates, is maintained in
+> [`ARCHITECTURE.md`](../ARCHITECTURE.md). This file preserves the concise original design.
+
 ## Product
 
 Make a busy machine understandable: what is running, which application it belongs
