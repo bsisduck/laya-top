@@ -12,7 +12,7 @@ backend. It is a working process manager, not an autonomous cleanup agent.
 - Live CPU, RAM, swap, network and disk activity with short resource histories.
 - A keyboard/mouse process table, stable process selection, sortable columns,
   search operators, tree mode, category overview and drill-down.
-- Explainable category labels; application grouping; user overrides.
+- Explainable category/subcategory labels; application grouping; user overrides.
 - An inspector with executable, owner, parent, age, threads and tag provenance.
 - Explicit terminate, force kill, suspend and resume dialogs. Escape cancels.
 - A demo mode, headless JSON snapshot, diagnostic command and explicit model download.
@@ -20,9 +20,11 @@ backend. It is a working process manager, not an autonomous cleanup agent.
 ## Architecture
 
 1. `collector`: psutil reads, independent of the terminal; CPU uses deltas by
-   (PID, creation time) so a reused PID cannot inherit an old CPU counter.
+   (PID, creation time) so a reused PID cannot inherit an old CPU counter. Process
+   handles, static metadata and short-lived state are cached at different cadences.
 2. `tagging`: deterministic executable/name rules first, user overrides above them.
-   Laya only proposes categories for unknown software. Categories never authorize actions.
+   Rules derive subcategories without another model call. Laya only proposes broad
+   categories for unknown software. Categories never authorize actions.
 3. `intelligence`: one daemon worker, bounded queue and LRU cache. Inference cannot
    block sampling or keyboard input. No automatic model downloads. No command-line
    arguments, environment variables or file contents enter a model prompt.
@@ -30,7 +32,8 @@ backend. It is a working process manager, not an autonomous cleanup agent.
    then call psutil's PID-reuse-aware signal methods. No shell, sudo, automatic
    escalation or recursive termination. UI confirmation captures an immutable target.
 5. `app`: Textual screen and modals; psutil sampling runs off the UI thread. Each
-   snapshot is immutable. Re-sorting preserves identity rather than row number.
+   snapshot is immutable. Keyed rows update changed cells and reorder in place;
+   selection follows process identity rather than row number.
 6. `cli/config`: installable Python entry point, explicit local paths, diagnostics,
    machine-readable snapshots and atomic per-user category overrides.
 

@@ -15,6 +15,12 @@ def test_rules_app_family_and_override(process):
     assert rule_tag(chrome, {}).label == "Browser / Browser"
     assert rule_tag(chrome, {label_key(chrome): "Development"}).source == "You"
     assert rule_tag(replace(process, name="ollama"), {}).label == "AI / Inference"
+    virtual_machine = replace(
+        process,
+        name="com.apple.Virtualization.VirtualMachine",
+        executable="/System/Library/Frameworks/Virtualization.framework/VirtualMachine",
+    )
+    assert rule_tag(virtual_machine, {}).label == "System / Virtual machine"
     assert rule_tag(replace(process, name="not-classified", executable=""), {}).source == "Unknown"
 
 

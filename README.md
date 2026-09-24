@@ -3,18 +3,18 @@
 **Know what is running. Understand the tags. Stay in control.**
 
 A keyboard-and-mouse terminal process monitor inspired by htop and asitop, with
-explainable software categories and optional **local Laya inference**. Built with
+explainable software categories, useful subcategories, and optional **local Laya inference**. Built with
 Python, Textual and psutil. Original project code is **MIT licensed**.
 
 ```text
  LAYA TOP                                    Know what is running.
  CPU 24.8%       MEMORY 17 / 32 GiB           NETWORK ↓ 47 KiB/s
  ─────────────────────────────────────────────────────────────────
- PID   PROCESS         CATEGORY       CPU %    MEMORY      SOURCE
- 4101  ollama          AI             134.2    6.7 GiB     Rule
- 4102  Code            Development     18.4    830 MiB     Rule
- 4104  Google Chrome   Browser         12.6    1.2 GiB     Rule
- 4110  custom-tool     Development ~    0.0     24 MiB     Laya
+ PID   PROCESS         CATEGORY / SUBCATEGORY    CPU %    MEMORY
+ 4101  ollama          AI / Inference             134.2    6.7 GiB
+ 4102  Code            Development / Editor        18.4    830 MiB
+ 4104  Google Chrome   Browser / Browser            12.6    1.2 GiB
+ 4110  custom-tool     Development ~                 0.0     24 MiB
  ─────────────────────────────────────────────────────────────────
  / Search   T Tree   G Categories   K Stop   L Label   ? Help
 ```
@@ -94,7 +94,7 @@ Apache-2.0 components; they are not relicensed to MIT. See [NOTICE](NOTICE).
 - Sort processes by CPU, resident memory, name, PID or age. Click supported column
   headings again to reverse sorting. 100% process CPU means one logical core.
 - Explore parent-child relationships in **Tree** view and resource totals in
-  **Categories** view. Enter on a category opens its members.
+  hierarchical **Categories** view. Enter on a category/subcategory opens its members.
 - Search software, application families, owners, PIDs, states and tags.
 - Pin interesting processes above the current sort with **F**.
 - Inspect a process's executable, owner, parent, lifetime, threads and tag reason.
@@ -143,6 +143,7 @@ spaces. Memory comparisons use **MiB**; CPU comparisons use percent of one core.
 
 ```text
 tag:AI
+sub:Runtime
 app:"Google Chrome"
 user:alice state:running
 cpu>5 mem>100
@@ -159,8 +160,12 @@ pid:1234
 3. **Laya** — a local suggestion for software not covered by those rules.
 4. **Unknown** — insufficient information, unavailable model, or inconclusive output.
 
-Categories: **AI, Development, Browser, Communication, Media, System, Other**.
-Rule matching is heuristic too: a renamed executable may be misclassified.
+Categories remain stable: **AI, Development, Browser, Communication, Media,
+System, Other**. Local rules add narrower labels such as **Inference, Editor,
+Runtime, Database, Renderer, Chat, Audio, Desktop**, and **Virtual machine**.
+Laya still makes one coarse-category inference; deterministic name rules derive
+the subcategory without a second model call. Rule matching is heuristic too: a
+renamed executable may be misclassified.
 
 The model receives only a short process name and application name. It never gets
 command-line arguments, environment variables, usernames, full executable paths,
@@ -200,6 +205,12 @@ No model output can trigger a signal or override process protection.
 
 Snapshots use rules and saved labels; they do not start the model. Demo labels are
 session-only and never modify your saved configuration.
+
+The collector reuses process handles and caches stable metadata instead of reading
+executable paths and usernames every refresh. The table keeps rows by immutable
+process identity, updates changed cells, and reorders them in place. On machines
+where model memory is more important than local suggestions, `--no-ai` avoids
+loading Core ML while retaining rules and subcategories.
 
 ## Development
 

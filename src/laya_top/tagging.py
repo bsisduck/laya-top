@@ -69,6 +69,7 @@ SUBCATEGORY_RULES = {
         ("Audio", r"(?i)(spotify|music|audacity)"),
     ),
     "System": (
+        ("Virtual machine", r"(?i)(virtualization\.virtualmachine|virtualmachine|qemu)"),
         ("Kernel", r"(?i)(kernel_task)"),
         ("Desktop", r"(?i)(windowserver|windowmanager|loginwindow|finder|dock)"),
         ("Shell", r"(?i)(^zsh$|^bash$|^sh$|^fish$)"),
@@ -144,10 +145,11 @@ def rule_tag(process: Process, overrides: dict[str, str]) -> Tag:
                 subcategory=subcategory_for(category, process),
             )
     if process.executable.startswith(("/System/", "/usr/libexec/", "/usr/lib/systemd/")):
+        subcategory = subcategory_for("System", process)
         return Tag(
             "System",
             "Rule",
             "Executable is in a system service directory.",
-            subcategory="Service",
+            subcategory="Service" if subcategory == "General" else subcategory,
         )
     return Tag("Other", "Unknown", "No matching rule. Set a category with L, or enable Laya.")
