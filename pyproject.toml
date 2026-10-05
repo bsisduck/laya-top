@@ -35,7 +35,7 @@ Security = "https://github.com/bsisduck/laya-top/security/policy"
 Changelog = "https://github.com/bsisduck/laya-top/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-laya = ["laya-coreml>=0.1,<0.2; sys_platform == 'darwin' and platform_machine == 'arm64'"]
+laya = ["laya-coreml>=0.1,<0.3; sys_platform == 'darwin' and platform_machine == 'arm64'"]
 dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1", "build>=1,<2"]
 
 [project.scripts]
